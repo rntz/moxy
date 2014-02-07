@@ -4,6 +4,8 @@
 (define (repr x)
   (with-output-to-string (lambda () (write x))))
 
+(define (map_ f . xs) (apply map f xs) (void))
+
 ;;; General syntax
 (define-syntax le-accum##               ;the ## is for ugliness
   (syntax-rules ()
@@ -23,6 +25,8 @@
 
 (define-syntax-rule (lambda-rec name rest ...)
   (letrec ((name (lambda rest ...))) name))
+
+(define-syntax-rule (eta f) (lambda x (apply f x)))
 
 ;;; Syntax for interfaces
 (define-syntax define-interface
@@ -131,6 +135,17 @@
   (lambda (instream env)
     (foldl (lambda (f r) ((f r) instream env)) (k instream env) fs)))
 
+(define >>
+  (case-lambda
+    [() (const (void))]
+    [xs (lambda (instream env)
+          (last (map (lambda (x) (x instream env)) xs)))]))
+
+(define ((<* k . ks) instream env)
+  (begin0
+    (k instream env)
+    (map_ (lambda (x) (x instream env)) ks)))
+
 (define (try p)
   (lambda (instream env)
     (let* ([orig-pos (get-pos instream)])
@@ -159,7 +174,7 @@
 (define (pzero instream env)
   (fail 'soft (get-pos instream) "pzero called"))
 
-(define (peof instream env)
+(define (eof instream env)
   (unless (eof? instream)
     (fail 'soft (get-pos instream) "expected EOF")))
 
@@ -174,6 +189,13 @@
               (string-append
                 "expected " (repr expect)
                 ", got" (repr got)))))))))
+
+(define (token expect) (try (string expect)))
+
+(define (many p) (choice (many1 p) (const '())))
+(define (many1 p) (fmap cons p (eta (many p))))
+
+(define (list* . xs) (apply fmap list xs))
 
 
 (displayln "loaded parse-monoid.rkt")
