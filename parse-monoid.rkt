@@ -124,6 +124,13 @@
 (define (fail how loc errmsg)
   (raise `(fail ,how ,loc ,errmsg)))
 
+(define ((fmap f . ks) instream env)
+  (apply f (map (lambda (x) (x instream env)) ks)))
+
+(define (>>= k . fs)
+  (lambda (instream env)
+    (foldl (lambda (f r) ((f r) instream env)) (k instream env) fs)))
+
 (define (try p)
   (lambda (instream env)
     (let* ([orig-pos (get-pos instream)])
@@ -137,13 +144,6 @@
 (define ((catching p) instream env)
   (with-handlers ([failed-soft? (lambda (e) e)])
     (list 'ok (p instream env))))
-
-(define ((fmap f . ks) instream env)
-  (apply f (map (lambda (x) (x instream env)) ks)))
-
-(define (>>= k . fs)
-  (lambda (instream env)
-    (foldl (lambda (f r) ((f r) instream env)) (k instream env) fs)))
 
 (define/match (psum ps)
   [((list)) pzero]
