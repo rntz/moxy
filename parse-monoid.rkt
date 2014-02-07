@@ -117,6 +117,12 @@
 ;;; - or raises (fail HOW LOC ERRMSG)
 ;;; where HOW is either 'soft or 'hard.
 
+;;; XXX FIXME: soft/hard failure not working properly - when we fail soft then
+;;; backtrack across something that has consumed characters we need to be
+;;; failing hard afterwards!
+;;;
+;;; maybe I should just pass continuations around.
+
 (define (parse-string parser string)
   (let* ([instream (string-stream string)]
          [result (parser instream (void))])
@@ -194,6 +200,9 @@
 
 (define (many p) (choice (many1 p) (const '())))
 (define (many1 p) (fmap cons p (eta (many p))))
+
+(define (between pre post x) (>> pre (<* x post)))
+(define (parens x) (between (token "(") (token ")") x))
 
 (define (list* . xs) (apply fmap list xs))
 
