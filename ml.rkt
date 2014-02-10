@@ -139,13 +139,21 @@
 ;;; definitions are my own, but some (eg. many1, skip-many1) are straight ports.
 
 (define (parse-string parser string)
+  (parser (void) (string-stream string) raise raise (lambda (_ r) r)))
+
+(define (pretty-parse-string parser string)
   (let ([str (string-stream string)])
-    (values
-      (parser (void) str
-        (lambda (loc msg) `(hard ,loc ,msg))
-        (lambda (loc msg) `(soft ,loc ,msg))
-        (lambda (_ r) `(ok ,r)))
-      (send str read-all))))
+    (match (parser (void) str
+             (lambda (loc msg) `(hard ,loc ,msg))
+             (lambda (loc msg) `(soft ,loc ,msg))
+             (lambda (_ r) `(ok ,r)))
+      [`(ok ,r) (display "ok: ") (println r)]
+      [`(,mode ,loc ,msg)
+        (display mode)
+        (display " failure at ")
+        (print loc)
+        (displayln (string-append ": " msg))])
+    (send str read-all)))
 
 ;;; Basic monadic operations
 (define ((return x) env str hardk softk ok) (ok #f x))
@@ -183,6 +191,7 @@
 
 (define (*> . as) (<$> last (seq as)))
 (define (<* . as) (<$> car (seq as)))
+(define (<$ x . as) (apply <* (return x) as))
 
 
 ;;; Special monadic operations: try, ask, local
@@ -190,10 +199,6 @@
   (p env str softk softk ok))
 
 ;;; Choice
-(define ((catching p) instream env)
-  (with-handlers ([failed-soft? (lambda (e) e)])
-    (list 'ok (p instream env))))
-
 (define ((psum ps) env str hardk softk ok)
   (let ([savepoint (mark str)])
     (match ps
@@ -211,6 +216,13 @@
         (f x xs)])))
 
 (define choice (nary psum))
+
+(define ((look-ahead p) env str hardk softk ok)
+  (let ([savepoint (mark str)])
+    (p env str hardk softk
+      (lambda (ate res)
+        (restore str savepoint)
+        (ok ate res)))))
 
 (define (pzero env str hardk softk ok)
   (softk (location str) "pzero called"))
@@ -248,6 +260,9 @@
         (if (pred res) (ok ate res)
           ((if ate hardk softk) loc msg))))))
 
+(define (negate p) (optional (*> p pzero)))
+(define (not-followed-by p pafter) (<* p (negate pafter)))
+
 
 ;;; Useful primitives
 (define (string expect)
@@ -260,9 +275,7 @@
             (hardk loc
               (string-append
                 "expected " (repr expect)
-                ", got" (repr got)))))))))
-
-(define (token expect) (try (string expect)))
+                ", got " (repr got)))))))))
 
 (define (any-char env str hardk softk ok)
   (let ([c (read-char str)])
@@ -279,57 +292,118 @@
     (try (pfilter any-char (string-append "expected none of " (repr s))
            (lambda (c) (not (member c l)))))))
 
-(define (parens x) (between (token "(") (token ")") x))
+(define (parens x) (between (any-of "(") (any-of ")") x))
 
 (define alpha (any-of "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
 (define digit (any-of "0123456789"))
+(define alphanum (choice alpha digit))
+
+(define (string-of p) (<$> list->string (many p)))
+(define (string-of1 p) (<$> list->string (many1 p)))
 
 (define space (any-of " \r\n\t\v\f"))
 (define whitespace (skip-many1 space))
 (define opt-whitespace (skip-many space))
 
-
-;; ;;; Simple parser for s-expressions
-;; (define p-symbol
-;;   (<$> (compose string->symbol list->string)
-;;        (many1 (choice alpha digit (any-of "-_$@!?#%^&*~<>=/")))))
-
-;; (define p-num
-;;   (<$> (compose string->number list->string)
-;;     (<$> append (option '() (list* (any-of "-")))
-;;                 (many1 digit))))
-
-;; (define p-atom (choice p-num p-symbol))
-;; (define p-sexp (choice p-atom (parens (eta p-exps)))) ;eta breaks circularity
-;; (define p-exps
-;;   (*> opt-whitespace
-;;       (sep-end-by p-sexp whitespace)))
+(define (token s) (try (string s)))
+(define (keyword s) (try (not-followed-by (string s) alphanum)))
 
 
-;;; Parser for a simple ML-like surface syntax.
-(define p-ident (<$> (compose string->symbol list->string)
-                     (many1 (choice alpha digit (any-of "_")))))
+;;; Parser for a simple ML-like surface syntax (w/out infix operators, type
+;;; definitions, mutually recursive definitions). As a convenience, all
+;;; non-"atomic" parsers consume all subsequent whitespace. If this were a
+;;; serious parser we'd use a separate tokenizer to avoid the headache involved
+;;; in keeping track of this.
+;;;
+;;; TODO: pattern-matching, data constructors.
+(define reserved-words
+  (map string->symbol (string-split "let val fun fn in")))
+
+(define p-ident
+  ;; TODO: is this "try" necessary?
+  (try (pfilter (<$> string->symbol
+                  (string-of1 (choice alphanum (any-of "_"))))
+         "cannot use keyword as identifier"
+         (lambda (x) (not (member x reserved-words))))))
 
 (define p-num
-  (<$> (compose string->number list->string)
-    (<$> append (option '() (list* (any-of "-")))
-                (many1 digit))))
+  (<$> (compose string->number list->string append)
+    (option '() (list* (any-of "-")))
+    (many1 digit)))
 
 (define p-string
-  (<$> list->string
-    (between (any-of "\"") (any-of "\"")
-      (many (choice (none-of "\\\"")
-                    (*> (any-of "\\") any-char))))))
+  (between (any-of "\"") (any-of "\"")
+    (string-of (choice (none-of "\\\"")
+                       (*> (any-of "\\") any-char)))))
 
-(define p-atom (choice p-ident p-num p-string))
+(define p-atom (choice p-num p-string p-ident))
 
 (define p-expr
-  (choice
-    (eta p-let)
-    p-atom))
+  (<$> (lambda (es) (foldl1 (lambda (e acc) `(app ,acc ,e)) es))
+    (eta p-exprs1)))
 
-(define p-let (*> (try (*> (string let) whitespace))
-                  ))
+(define p-simple-expr (<* (choice (parens p-expr) p-atom) opt-whitespace))
+
+(define p-lambda
+  (<$> (lambda (param exp) `(fn ,param ,exp))
+    (*> (keyword "fn") whitespace p-ident)
+    (*> opt-whitespace (token "=>") opt-whitespace p-expr)))
+
+(define p-decl
+  (choice
+    (<$> (lambda (i e) `(val ,i ,e))
+      (*> (keyword "val") whitespace p-ident)
+      (*> opt-whitespace (token "=") opt-whitespace p-expr))
+    (<$> (lambda (i a e) `(fun ,i ,a ,e))
+      (*> (keyword "fun") whitespace p-ident)
+      (*> opt-whitespace (sep-end-by1 p-ident whitespace))
+      (*> opt-whitespace (token "=") opt-whitespace p-expr))))
+
+(define p-decls (*> opt-whitespace (sep-end-by p-decl opt-whitespace)))
+
+(define p-let (<$> (lambda (decls expr) `(let ,decls ,expr))
+                (*> (keyword "let") whitespace p-decls)
+                (*> (keyword "in") whitespace p-expr)))
+
+(define p-exprs1
+  (choice (list* (choice p-let p-lambda))
+    (<$> cons p-simple-expr (eta p-exprs))))
+
+(define p-exprs (choice p-exprs1 (<$ '() opt-whitespace)))
+
+
+;;; Evaluator for this ML-like language.
+(define (ml-eval e env)
+  (match e
+    [`(let ,decls ,exp)
+      ;; Extend context
+      (ml-eval exp (ml-eval-decls decls env))]
+    [`(app ,f ,a) ((ml-eval f env) (ml-eval a env))]
+    [`(fn ,p ,e)
+      (lambda (a)
+        (ml-eval e `((,p ,a) ,@env)))]
+    [(? symbol?) (lookup e env)]
+    [(? string?) e]
+    [(? number?) e]
+    [_ (error "I don't know how to evaluate that.")]))
+
+(define (lookup x env) (cadr (assoc x env))) ;TODO: useful error message
+
+(define (ml-eval-decls decls env) (foldl ml-eval-decl env decls))
+
+(define (ml-eval-decl decl env)
+  (match decl
+    [`(val ,i ,e) `((,i ,(ml-eval e env)) ,@env)]
+    [`(fun ,i (,p . ,ps) ,e)
+      (letrec ((f (lambda (a)
+                    (ml-eval
+                      (foldr (lambda (p e) `(fn ,p ,e)) e ps)
+                      `((,p ,a) (,i ,f) ,@env)))))
+        `((,i ,f) ,@env))]
+    [_ (error "I don't know how to evaluate that.")]))
+
+
+;;; TODO: Compiler (to Racket) for this ML-like language
 
 
 (displayln "loaded parse-monoid.rkt")
