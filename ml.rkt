@@ -139,7 +139,10 @@
 ;;; definitions are my own, but some (eg. many1, skip-many1) are straight ports.
 
 (define (parse-string parser string)
-  (parser (void) (string-stream string) raise raise (lambda (_ r) r)))
+  (parser (void) (string-stream string)
+    (lambda (loc msg) (raise `(hard ,loc ,msg)))
+    (lambda (loc msg) (raise `(soft ,loc ,msg)))
+    (lambda (_ r) r)))
 
 (define (pretty-parse-string parser string)
   (let ([str (string-stream string)])
@@ -302,39 +305,43 @@
 (define (string-of1 p) (<$> list->string (many1 p)))
 
 (define space (any-of " \r\n\t\v\f"))
-(define whitespace (skip-many1 space))
-(define opt-whitespace (skip-many space))
-
-(define (token s) (try (string s)))
-(define (keyword s) (try (not-followed-by (string s) alphanum)))
+(define spaces (skip-many space))
+(define spaces1 (skip-many1 space))
 
 
 ;;; Parser for a simple ML-like surface syntax (w/out infix operators, type
-;;; definitions, mutually recursive definitions). As a convenience, all
-;;; non-"atomic" parsers consume all subsequent whitespace. If this were a
-;;; serious parser we'd use a separate tokenizer to avoid the headache involved
-;;; in keeping track of this.
+;;; definitions, mutually recursive definitions). All parsers consume all
+;;; subsequent whitespace. If this were a serious parser we'd use a separate
+;;; tokenizer and avoid this annoyance.
 ;;;
 ;;; TODO: pattern-matching, data constructors.
 (define reserved-words
   (map string->symbol (string-split "let val fun fn in")))
 
+(define (spaced p) (<* p spaces))
+(define (token s) (spaced (try (string s))))
+(define (keyword s) (spaced (try (not-followed-by (string s) alphanum))))
+(define (labeled lbl . ps) (<$> (partial cons lbl) (seq ps)))
+(define (keyworded kwd . ps)
+  (*> (keyword (symbol->string kwd))
+      (apply labeled kwd ps)))
+
 (define p-ident
-  ;; TODO: is this "try" necessary?
-  (try (pfilter (<$> string->symbol
-                  (string-of1 (choice alphanum (any-of "_"))))
-         "cannot use keyword as identifier"
-         (lambda (x) (not (member x reserved-words))))))
+  (spaced
+    (try (pfilter (<$> string->symbol
+                    (string-of1 (choice alphanum (any-of "_"))))
+           "cannot use keyword as identifier"
+           (lambda (x) (not (member x reserved-words)))))))
 
 (define p-num
-  (<$> (compose string->number list->string append)
-    (option '() (list* (any-of "-")))
-    (many1 digit)))
+  (spaced (<$> (compose string->number list->string append)
+            (option '() (list* (any-of "-")))
+            (many1 digit))))
 
 (define p-string
-  (between (any-of "\"") (any-of "\"")
-    (string-of (choice (none-of "\\\"")
-                       (*> (any-of "\\") any-char)))))
+  (spaced (between (any-of "\"") (any-of "\"")
+            (string-of (choice (none-of "\\\"")
+                               (*> (any-of "\\") any-char))))))
 
 (define p-atom (choice p-num p-string p-ident))
 
@@ -342,34 +349,26 @@
   (<$> (lambda (es) (foldl1 (lambda (e acc) `(app ,acc ,e)) es))
     (eta p-exprs1)))
 
-(define p-simple-expr (<* (choice (parens p-expr) p-atom) opt-whitespace))
+(define p-simple-expr (choice (spaced (parens p-expr)) p-atom))
 
 (define p-lambda
-  (<$> (lambda (param exp) `(fn ,param ,exp))
-    (*> (keyword "fn") whitespace p-ident)
-    (*> opt-whitespace (token "=>") opt-whitespace p-expr)))
+  (keyworded 'fn
+    p-ident
+    (*> (token "=>") p-expr)))
 
 (define p-decl
   (choice
-    (<$> (lambda (i e) `(val ,i ,e))
-      (*> (keyword "val") whitespace p-ident)
-      (*> opt-whitespace (token "=") opt-whitespace p-expr))
-    (<$> (lambda (i a e) `(fun ,i ,a ,e))
-      (*> (keyword "fun") whitespace p-ident)
-      (*> opt-whitespace (sep-end-by1 p-ident whitespace))
-      (*> opt-whitespace (token "=") opt-whitespace p-expr))))
+    (keyworded 'val p-ident (*> (token "=") p-expr))
+    (keyworded 'fun p-ident (many1 p-ident) (*> (token "=") p-expr))
+    (keyworded 'data (many1 p-ident))))
 
-(define p-decls (*> opt-whitespace (sep-end-by p-decl opt-whitespace)))
-
-(define p-let (<$> (lambda (decls expr) `(let ,decls ,expr))
-                (*> (keyword "let") whitespace p-decls)
-                (*> (keyword "in") whitespace p-expr)))
+(define p-let (keyworded 'let (many p-decl) (*> (keyword "in") p-expr)))
 
 (define p-exprs1
   (choice (list* (choice p-let p-lambda))
     (<$> cons p-simple-expr (eta p-exprs))))
 
-(define p-exprs (choice p-exprs1 (<$ '() opt-whitespace)))
+(define p-exprs (choice p-exprs1 (<$ '() spaces)))
 
 
 ;;; Evaluator for this ML-like language.
