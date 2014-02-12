@@ -172,7 +172,7 @@
         (restore str savepoint)
         (ok res)))))
 
-(define pzero (fail "pzero called"))
+(define (pzero str fk ok) (fk))
 
 (define (peof str fk ok)
   (if (eof? str) (ok (void)) (fk)))
