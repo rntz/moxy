@@ -16,20 +16,6 @@
     [`(,x) x]
     [(cons x xs) (foldl f x xs)]))
 
-;;; General syntax
-(define-syntax le-accum##               ;the ## is for ugliness
-  (syntax-rules ()
-    [(_ acc e) (letrec acc e)]
-    [(_ (acc ...) id ex rest ... e)
-      (le-accum## (acc ... (id ex)) rest ... e)]))
-
-(define-syntax le
-  (syntax-rules ()
-    [(le bindings ... exp)
-      (le-accum## () bindings ... exp)]))
-
-(define-syntax-rule (le1 x e body ...) (let ((x e)) body ...))
-
 (define-syntax-rule (matches? exp pat)
   (match exp [pat #t] [_ #f]))
 
@@ -117,63 +103,39 @@
 ;; TODO: file-stream%
 
 
-;;; Monoids, represented explicitly.
-
-
+;;; Naïve parser combinators (like eg. Parsec, but much less efficient).
+;;;
 ;;; A parser is a function that takes:
-;;; - the extensible environment (a monoid of some sort)
 ;;; - an input stream
-;;; - a hard failure continuation
-;;; - a soft failure continuation
+;;; - a failure continuation
 ;;; - a success continuation
 ;;;
-;;; The success continuation takes:
-;;; - a boolean which is #t iff we consumed input
-;;; - the result
-;;;
-;;; The failure continuations take:
-;;; - a location
-;;; - an error message
-;;;
-;;; This approach is strongly inspired by Haskell's Parsec library. Most of the
-;;; definitions are my own, but some (eg. many1, skip-many1) are straight ports.
+;;; The success continuation takes the result
+;;; The failure continuation takes no arguments
+
+(define debug-parser #f)
 
 (define (parse-string parser string)
-  (parser (void) (string-stream string)
-    (lambda (loc msg) (raise `(hard ,loc ,msg)))
-    (lambda (loc msg) (raise `(soft ,loc ,msg)))
-    (lambda (_ r) r)))
-
-(define (pretty-parse-string parser string)
   (let ([str (string-stream string)])
-    (match (parser (void) str
-             (lambda (loc msg) `(hard ,loc ,msg))
-             (lambda (loc msg) `(soft ,loc ,msg))
-             (lambda (_ r) `(ok ,r)))
-      [`(ok ,r) (display "ok: ") (println r)]
-      [`(,mode ,loc ,msg)
-        (display mode)
-        (display " failure at ")
-        (print loc)
-        (displayln (string-append ": " msg))])
-    (send str read-all)))
+    (parser str
+      ;; not actually guaranteed to get us the location of the "real" failure.
+      (lambda () (error (string-append "failed at " (repr (location str)))))
+      identity)))
 
 ;;; Basic monadic operations
-(define ((return x) env str hardk softk ok) (ok #f x))
+(define ((return x) str fk ok) (ok x))
 
-(define ((fail msg) env str hardk softk ok)
-  (softk (location str) ))
+;;; TODO: remove if unused
+(define ((fail msg) str fk ok)
+  (when debug-parser
+    (displayln (string-append (repr (location str)) msg)))
+  (fk))
 
-(define ((fmap1 f a) env str hardk softk ok)
-  (a env str hardk softk
-    (lambda (ate res) (ok ate (f res)))))
+(define ((fmap1 f a) str fk ok)
+  (a str fk (compose ok f)))
 
-(define ((fmap2 f a b) env str hardk softk ok)
-  (a env str hardk softk
-    (lambda (aate ares)
-      (b env str hardk (if aate hardk softk)
-        (lambda (bate bres)
-          (ok (or aate bate) (f ares bres)))))))
+(define ((fmap2 f a b) str fk ok)
+  (a str fk (lambda (ares) (b str fk (lambda (bres) (ok (f ares bres)))))))
 
 (define (lift1 f) (partial fmap1 f))
 (define (lift2 f) (partial fmap2 f))
@@ -186,53 +148,39 @@
   (case-lambda
     [(x) x]
     [(a f . fs)
-      (lambda (env str hardk softk ok)
-        (a env str hardk softk
-          (lambda (ate res)
-            ((apply >>= (f res) fs)
-              env str hardk (if ate hardk softk) ok))))]))
+      (lambda (str fk ok)
+        (a str fk
+          (lambda (res)
+            ((apply >>= (f res) fs) str fk ok))))]))
 
 (define (*> . as) (<$> last (seq as)))
 (define (<* . as) (<$> car (seq as)))
 (define (<$ x . as) (apply <* (return x) as))
 
 
-;;; Special monadic operations: try, ask, local
-(define ((try p) env str hardk softk ok)
-  (p env str softk softk ok))
-
 ;;; Choice
-(define ((psum ps) env str hardk softk ok)
+(define ((psum ps) str fk ok)
   (let ([savepoint (mark str)])
-    (match ps
-      ['() (softk (location str) "empty psum")]
-      [(cons x xs)
-        (define (f x xs)
-          (x env str hardk
-            (lambda (loc msg)
-              (match xs
-                ['() (softk loc msg)]
-                [(cons x xs)
-                  (restore str savepoint)
-                  (f x xs)]))
-            ok))
-        (f x xs)])))
+    (define (f ps)
+      (if (null? ps) (fk)
+        ((car ps) str
+          (lambda () (restore str savepoint) (f (cdr ps)))
+          ok)))
+    (f ps)))
 
 (define choice (nary psum))
 
-(define ((look-ahead p) env str hardk softk ok)
+(define ((look-ahead p) str fk ok)
   (let ([savepoint (mark str)])
-    (p env str hardk softk
-      (lambda (ate res)
+    (p str fk
+      (lambda (res)
         (restore str savepoint)
-        (ok ate res)))))
+        (ok res)))))
 
-(define (pzero env str hardk softk ok)
-  (softk (location str) "pzero called"))
+(define pzero (fail "pzero called"))
 
-(define (peof env str hardk softk ok)
-  (if (eof? str) (ok #f (void))
-    (softk (location str) "expected EOF")))
+(define (peof str fk ok)
+  (if (eof? str) (ok (void)) (fk)))
 
 
 ;;; Useful combinators
@@ -256,12 +204,11 @@
 
 (define (between pre post x) (*> pre (<* x post)))
 
-(define ((pfilter parser msg pred) env str hardk softk ok)
+(define ((pfilter pred parser) str fk ok)
   (let ([loc (location str)])
-    (parser env str hardk softk
-      (lambda (ate res)
-        (if (pred res) (ok ate res)
-          ((if ate hardk softk) loc msg))))))
+    (parser str fk
+      (lambda (res)
+        (if (pred res) (ok res) (fk))))))
 
 (define (negate p) (optional (*> p pzero)))
 (define (not-followed-by p pafter) (<* p (negate pafter)))
@@ -271,29 +218,22 @@
 (define (string expect)
   (let ([len (string-length expect)])
     (if (= 0 len) (return (void))
-      (lambda (env str hardk softk ok)
+      (lambda (str fk ok)
         (let ([loc (location str)]
               [got (read-string str len)])
-          (if (string=? got expect) (ok #t expect)
-            (hardk loc
-              (string-append
-                "expected " (repr expect)
-                ", got " (repr got)))))))))
+          (if (string=? got expect) (ok expect) (fk)))))))
 
-(define (any-char env str hardk softk ok)
+(define (any-char str fk ok)
   (let ([c (read-char str)])
-    (if (eof-object? c) (softk (location str) "unexpected EOF")
-      (ok #t c))))
+    (if (eof-object? c) (fk) (ok c))))
 
 (define (any-of s)
   (let ([l (string->list s)])
-    (try (pfilter any-char (string-append "expected any of " (repr s))
-           (lambda (c) (member c l))))))
+    (pfilter (lambda (c) (member c l)) any-char)))
 
 (define (none-of s)
   (let ([l (string->list s)])
-    (try (pfilter any-char (string-append "expected none of " (repr s))
-           (lambda (c) (not (member c l)))))))
+    (pfilter (lambda (c) (not (member c l))) any-char)))
 
 (define (parens x) (between (any-of "(") (any-of ")") x))
 
@@ -319,8 +259,8 @@
   (map string->symbol (string-split "case data fn fun in let of val")))
 
 (define (spaced p) (<* p spaces))
-(define (token s) (spaced (try (string s))))
-(define (keyword s) (spaced (try (not-followed-by (string s) alphanum))))
+(define (token s) (spaced (string s)))
+(define (keyword s) (spaced (not-followed-by (string s) alphanum)))
 (define (labeled lbl . ps) (<$> (partial cons lbl) (seq ps)))
 (define (keyworded kwd . ps)
   (*> (keyword (symbol->string kwd))
@@ -328,11 +268,10 @@
 
 (define p-ident
   (spaced
-    (try (pfilter (<$> (compose string->symbol list->string append)
-                    (list* (choice alpha (any-of "_")))
-                    (many (choice alphanum (any-of "_"))))
-           "cannot use keyword as identifier"
-           (lambda (x) (not (member x reserved-words)))))))
+    (pfilter (lambda (x) (not (member x reserved-words)))
+      (<$> (compose string->symbol list->string append)
+        (list* (choice alpha (any-of "_")))
+        (many (choice alphanum (any-of "_")))))))
 
 (define p-num
   (spaced (<$> (compose string->number list->string append)
@@ -403,14 +342,14 @@
                       (foldr (lambda (p e) `(fn ,p ,e)) e ps)
                       `((,p ,a) (,i ,f) ,@env)))])
         `((,i ,f) ,@env))]
-    [`(data (,i . ,params))
-      (let ([uid (gensym i)]
-            [ctor (if (null? params) (list uid)
-                    (foldl
-                      (lambda (args) (cons uid args))
-                      params
-                      ))]))
-      ]
+    ;; [`(data (,i . ,params))
+    ;;   (let ([uid (gensym i)]
+    ;;         [ctor (if (null? params) (list uid)
+    ;;                 (foldl
+    ;;                   (lambda (args) (cons uid args))
+    ;;                   params
+    ;;                   ))]))
+    ;;   ]
     [_ (error "I don't know how to evaluate that.")]))
 
 
