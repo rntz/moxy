@@ -328,6 +328,12 @@
 
 (define (ml-eval-decls decls env) (foldl ml-eval-decl env decls))
 
+;;; FIXME: This is a horribly inefficient definition.
+(define (curry-n-args nargs f)
+  (if (= nargs 0) (f)
+    (lambda (x)
+      (curry-n-args (- nargs 1) (lambda a (apply f x a))))))
+
 (define (ml-eval-decl decl env)
   (match decl
     [`(val ,i ,e) `((,i ,(ml-eval e env)) ,@env)]
@@ -337,14 +343,10 @@
                       (foldr (lambda (p e) `(fn ,p ,e)) e ps)
                       `((,p ,a) (,i ,f) ,@env)))])
         `((,i ,f) ,@env))]
-    ;; [`(data (,i . ,params))
-    ;;   (let ([uid (gensym i)]
-    ;;         [ctor (if (null? params) (list uid)
-    ;;                 (foldl
-    ;;                   (lambda (args) (cons uid args))
-    ;;                   params
-    ;;                   ))]))
-    ;;   ]
+    [`(data (,i . ,params))
+      (let* ([uid (gensym i)]
+             [ctor (curry-n-args (length params) (lambda a (cons uid a)))])
+        `((,i ,ctor ,uid ,params) ,@env))]
     [_ (error "I don't know how to evaluate that.")]))
 
 
