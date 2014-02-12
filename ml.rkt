@@ -126,12 +126,6 @@
 ;;; Basic monadic operations
 (define ((return x) str fk ok) (ok x))
 
-;;; TODO: remove if unused
-(define ((fail msg) str fk ok)
-  (when debug-parser
-    (displayln (string-append (repr (location str)) msg)))
-  (fk))
-
 (define ((fmap1 f a) str fk ok)
   (a str fk (compose ok f)))
 
