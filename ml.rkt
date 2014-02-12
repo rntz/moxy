@@ -309,14 +309,14 @@
 (define spaces1 (skip-many1 space))
 
 
-;;; Parser for a simple ML-like surface syntax (w/out infix operators, type
-;;; definitions, mutually recursive definitions). All parsers consume all
-;;; subsequent whitespace. If this were a serious parser we'd use a separate
-;;; tokenizer and avoid this annoyance.
+;;; Parser for a simple ML-like surface syntax (w/out infix, types, mutually
+;;; recursive definitions). All parsers consume all subsequent whitespace. If
+;;; this were a serious parser we'd use a separate tokenizer and avoid this
+;;; annoyance.
 ;;;
-;;; TODO: pattern-matching, data constructors.
+;;; TODO: pattern-matching
 (define reserved-words
-  (map string->symbol (string-split "let val fun fn in")))
+  (map string->symbol (string-split "case data fn fun in let of val")))
 
 (define (spaced p) (<* p spaces))
 (define (token s) (spaced (try (string s))))
@@ -328,8 +328,9 @@
 
 (define p-ident
   (spaced
-    (try (pfilter (<$> string->symbol
-                    (string-of1 (choice alphanum (any-of "_"))))
+    (try (pfilter (<$> (compose string->symbol list->string append)
+                    (list* (choice alpha (any-of "_")))
+                    (many (choice alphanum (any-of "_"))))
            "cannot use keyword as identifier"
            (lambda (x) (not (member x reserved-words)))))))
 
@@ -351,11 +352,6 @@
 
 (define p-simple-expr (choice (spaced (parens p-expr)) p-atom))
 
-(define p-lambda
-  (keyworded 'fn
-    p-ident
-    (*> (token "=>") p-expr)))
-
 (define p-decl
   (choice
     (keyworded 'val p-ident (*> (token "=") p-expr))
@@ -364,8 +360,16 @@
 
 (define p-let (keyworded 'let (many p-decl) (*> (keyword "in") p-expr)))
 
+(define p-lambda (keyworded 'fn p-ident (*> (token "=>") p-expr)))
+
+(define p-pattern (many1 p-ident))
+(define p-case-branch (list* p-pattern (*> (token "=>") p-expr)))
+(define p-case (keyworded 'case p-expr
+                 (*> (keyword "of")
+                     (sep-by1 p-case-branch (token "|")))))
+
 (define p-exprs1
-  (choice (list* (choice p-let p-lambda))
+  (choice (list* (choice p-case p-lambda p-let))
     (<$> cons p-simple-expr (eta p-exprs))))
 
 (define p-exprs (choice p-exprs1 (<$ '() spaces)))
@@ -394,11 +398,19 @@
   (match decl
     [`(val ,i ,e) `((,i ,(ml-eval e env)) ,@env)]
     [`(fun ,i (,p . ,ps) ,e)
-      (letrec ((f (lambda (a)
+      (letrec ([f (lambda (a)
                     (ml-eval
                       (foldr (lambda (p e) `(fn ,p ,e)) e ps)
-                      `((,p ,a) (,i ,f) ,@env)))))
+                      `((,p ,a) (,i ,f) ,@env)))])
         `((,i ,f) ,@env))]
+    [`(data (,i . ,params))
+      (let ([uid (gensym i)]
+            [ctor (if (null? params) (list uid)
+                    (foldl
+                      (lambda (args) (cons uid args))
+                      params
+                      ))]))
+      ]
     [_ (error "I don't know how to evaluate that.")]))
 
 
