@@ -103,7 +103,8 @@
 ;; TODO: file-stream%
 
 
-;;; Naïve parser combinators (like eg. Parsec, but much less efficient).
+;;; Naïve parser combinators (somewhat like eg. Parsec, but much less
+;;; efficient).
 ;;;
 ;;; A parser is a function that takes:
 ;;; - an input stream
