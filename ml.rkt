@@ -2,6 +2,7 @@
 ;;; dynamically-typed language with vaguely ML-ish surface syntax. Written for
 ;;; the purpose of learning Racket and exploring parser-combinators in a
 ;;; language that isn't Haskell.
+#lang racket
 
 ;;; Miscellaneous utilities
 (define (repr x)
@@ -307,7 +308,9 @@
 
 
 ;;; Evaluator for this ML-like language.
-;;; TODO: useful error messages.
+;;;
+;;; TODO: useful error messages (even just ones that look like bad error
+;;; messages rather than looking like there's a bug in my code).
 (define (ml-eval e env)
   (match e
     [`(let ,decls ,exp)
@@ -372,4 +375,15 @@
     [_ (error "I don't know how to evaluate that.")]))
 
 
-(displayln "loaded parse-monoid.rkt")
+;;; Read stdin, parse it, run it, print the output.
+;;; TODO: a repl?
+(displayln (ml-eval (parse-string (<* p-expr peof) (port->string)) '()))
+
+;;; Example program:
+;; let data cons x xs
+;;     data nil
+;;     fun map f l = case l
+;;                    of nil => nil
+;;                     | cons x xs => cons (f x) (map f xs)
+;;     fun id x = x
+;; in map id (cons 1 (cons 2 (cons 3 nil)))

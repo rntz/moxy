@@ -1,0 +1,7 @@
+let data cons x xs
+    data nil
+    fun map f l = case l
+                   of nil => nil
+                    | cons x xs => cons (f x) (map f xs)
+    fun id x = x
+in map id (cons 1 (cons 2 (cons 3 nil)))
