@@ -1,17 +1,16 @@
 ;;; An awful, terrible, very-bad, not good at all implementation of a
-;;; dynamically-typed language with vaguely ML-ish surface syntax.
+;;; dynamically-typed language with vaguely ML-ish surface syntax. Written for
+;;; the purpose of learning Racket and exploring parser-combinators in a
+;;; language that isn't Haskell.
 
 ;;; Miscellaneous utilities
-(define (const x) (lambda _ x))
-(define (println x) (print x) (display "\n"))
 (define (repr x)
   (with-output-to-string (lambda () (write x))))
 
 (define ((partial f . as) . bs) (apply f (append as bs)))
 (define ((nary f) . as) (f as))
 (define ((unary f) xs) (apply f xs))
--
-(define (map_ f . xs) (apply map f xs) (void))
+
 (define zip (partial map list))
 
 (define (foldl1 f xs)
@@ -19,12 +18,6 @@
     ['() (error "foldl1 called on empty list")]
     [`(,x) x]
     [(cons x xs) (foldl f x xs)]))
-
-(define-syntax-rule (matches? exp pat)
-  (match exp [pat #t] [_ #f]))
-
-(define-syntax-rule (lambda-rec name rest ...)
-  (letrec ((name (lambda rest ...))) name))
 
 (define-syntax-rule (eta f) (lambda x (apply f x)))
 
@@ -53,7 +46,6 @@
         (let ([g (generic iface-name method)])
           (lambda (object . args)
             (send-generic object g . args))))]))
-
 
 
 ;;; First we define what our stream interface looks like.
@@ -378,9 +370,6 @@
              [ctor (curry-n-args (length params) (lambda a (cons uid a)))])
         `((,i ,ctor ,uid ,params) ,@env))]
     [_ (error "I don't know how to evaluate that.")]))
-
-
-;;; TODO: Compiler (to Racket) for this ML-like language
 
 
 (displayln "loaded parse-monoid.rkt")
