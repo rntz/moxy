@@ -1,14 +1,18 @@
+;;; An awful, terrible, very-bad, not good at all implementation of a
+;;; dynamically-typed language with vaguely ML-ish surface syntax.
+
 ;;; Miscellaneous utilities
 (define (const x) (lambda _ x))
 (define (println x) (print x) (display "\n"))
 (define (repr x)
   (with-output-to-string (lambda () (write x))))
 
-(define (map_ f . xs) (apply map f xs) (void))
-
 (define ((partial f . as) . bs) (apply f (append as bs)))
 (define ((nary f) . as) (f as))
 (define ((unary f) xs) (apply f xs))
+-
+(define (map_ f . xs) (apply map f xs) (void))
+(define zip (partial map list))
 
 (define (foldl1 f xs)
   (match xs
@@ -113,6 +117,9 @@
 ;;;
 ;;; The success continuation takes the result
 ;;; The failure continuation takes no arguments
+;;;
+;;; It would be very difficult to get useful error messages on parse failure
+;;; with this kind of parser, so we don't.
 
 (define debug-parser #f)
 
@@ -248,8 +255,6 @@
 ;;; recursive definitions). All parsers consume all subsequent whitespace. If
 ;;; this were a serious parser we'd use a separate tokenizer and avoid this
 ;;; annoyance.
-;;;
-;;; TODO: pattern-matching
 (define reserved-words
   (map string->symbol (string-split "case data fn fun in let of val")))
 
@@ -310,6 +315,7 @@
 
 
 ;;; Evaluator for this ML-like language.
+;;; TODO: useful error messages.
 (define (ml-eval e env)
   (match e
     [`(let ,decls ,exp)
@@ -319,10 +325,34 @@
     [`(fn ,p ,e)
       (lambda (a)
         (ml-eval e `((,p ,a) ,@env)))]
+    [`(case ,e ,branches)
+      (let ([ev (ml-eval e env)])
+        (define/match (try-branch bs)
+          [('()) (error "no branch matched")]
+          [(`((,pat ,exp) . ,bs))
+            (ml-match ev pat env
+              (partial ml-eval exp)
+              (lambda () (try-branch bs)))])
+        (try-branch branches))]
     [(? symbol?) (lookup e env)]
     [(? string?) e]
     [(? number?) e]
     [_ (error "I don't know how to evaluate that.")]))
+
+;;; Tries to match `val' against `pat' in `env'; if successful, calls `ok' with
+;;; the modified environment. Otherwise calls `fk'.
+(define (ml-match val pat env ok fk)
+  (match pat
+    [(? symbol?) (ok `((,pat ,val) ,@env))]
+    [`(,(? symbol? ctor) . ,param-pats)
+      ;; TODO: useful error message on lookup failure.
+      (match-let ([`(,_ ,_ ,uid ,params) (assoc ctor env)])
+        (when (not (= (length params) (length param-pats)))
+          (error "pattern has wrong number of arguments to constructor"))
+        (if (and (pair? val) (eq? uid (car val)))
+          (ok `(,@(zip param-pats (cdr val)) ,@env))
+          (fk)))]
+    [_ (error "I don't know how to match that pattern.")]))
 
 (define (lookup x env) (cadr (assoc x env))) ;TODO: useful error message
 
