@@ -153,7 +153,7 @@
 (define (<$ x . as) (apply <* (return x) as))
 
 
-;;; Choice
+;;; Choice and other primitives
 (define ((psum ps) str fk ok)
   (let ([savepoint (mark str)])
     (define (f ps)
