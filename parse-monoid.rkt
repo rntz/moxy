@@ -1,3 +1,6 @@
+(require racket/stream)
+(require racket/sequence)
+
 ;;; Miscellaneous utilities
 (define (const x) (lambda _ x))
 (define (println x) (print x) (display "\n"))
@@ -68,12 +71,13 @@
 
 ;;; First we define what our stream interface looks like.
 (define-interface stream<%> ()
-  read-char   ;; stream -> (or char? eof-object?)
-  read-string ;; stream nat -> string?
+  empty?      ;; stream -> bool
+  peek        ;; stream -> element
+  read-one    ;; stream -> element
+  read-string ;; stream nat -> (seq element)
   location    ;; stream -> loc
   mark        ;; stream -> mark
   restore     ;; stream mark -> ()
-  eof?        ;; stream -> bool
   )
 
 (define string-stream%
@@ -84,11 +88,18 @@
     (define current-pos 0)
     (super-new)
 
-    (define/public (read-char)
-      (if (eof?) eof
-        (begin0
-          (string-ref contents current-pos)
-          (set! current-pos (+ 1 current-pos)))))
+    (define/public (empty?)
+      (= current-pos (string-length contents)))
+
+    (define/public (peek)
+      (when (empty?) (error "tried to peek at empty string-stream%"))
+      (string-ref contents current-pos))
+
+    (define/public (read-one)
+      (when (empty?) (error "tried to read-one from end of string-stream%"))
+      (begin0
+        (string-ref contents current-pos)
+        (set! current-pos (+ 1 current-pos))))
 
     (define/public (read-string amt)
       (let ([start current-pos]
@@ -104,9 +115,6 @@
         (error "invalid position"))
       (set! current-pos pos))
 
-    (define/public (eof?)
-      (= current-pos (string-length contents)))
-
     (define/public (get-contents) contents)
     (define/public (read-all)
       (read-string (- (string-length contents) current-pos)))))
@@ -116,12 +124,47 @@
 
 ;; TODO: file-stream%
 
+(define stream-stream%
+  (class* object% (stream<%>)
+    (init stream)
+
+    (define contents stream)
+    (super-new)
+
+    (define/public (empty?) (stream-empty? contents))
+
+    (define/public (peek)
+      (when (empty?) (error "tried to peek at empty stream-stream%"))
+      (stream-first contents))
+
+    (define/public (read-one)
+      (when (empty?) (error "tried to read-one from end of stream-stream%"))
+      (begin0
+        (stream-first contents)
+        (set! contents (stream-tail contents))))
+
+    (define/public (read-string n)
+      (if (empty?) '()
+        (cons (read-one) (read (- n 1)))))
+
+    (define/public (location)
+      ;; TODO: location tracking.
+      #f)
+
+    (define/public (mark) contents)
+    (define/public (restore mrk) (set! contents mrk))
+
+    (define/public (read-all)
+      (begin0
+        (stream->list contents)
+        (set! contents empty-stream)))))
+
 
 ;;; Monoids, represented explicitly.
 
 
 ;;; A parser is a function that takes:
-;;; - the extensible environment (a monoid of some sort)
+;;; - the extensible environment (a value of some monoid)
 ;;; - an input stream
 ;;; - a hard failure continuation
 ;;; - a soft failure continuation
@@ -135,8 +178,7 @@
 ;;; - a location
 ;;; - an error message
 ;;;
-;;; This approach is strongly inspired by Haskell's Parsec library. Most of the
-;;; definitions are my own, but some (eg. many1, skip-many1) are straight ports.
+;;; This is basically a reimplementation of the Haskell Parsec library.
 
 (define (parse-string parser string)
   (let ([str (string-stream string)])
@@ -151,7 +193,7 @@
 (define ((return x) env str hardk softk ok) (ok #f x))
 
 (define ((fail msg) env str hardk softk ok)
-  (softk (location str) ))
+  (softk (location str) msg))
 
 (define ((fmap1 f a) env str hardk softk ok)
   (a env str hardk softk
@@ -186,14 +228,22 @@
 
 
 ;;; Special monadic operations: try, ask, local
+
+;;; Runs a parser p, turning hard failures into soft failures. This allows
+;;; nontrivial backtracking, which is useful but can cause asymptotic slowdown.
 (define ((try p) env str hardk softk ok)
   (p env str softk softk ok))
 
-;;; Choice
-(define ((catching p) instream env)
-  (with-handlers ([failed-soft? (lambda (e) e)])
-    (list 'ok (p instream env))))
+;;; Returns the current environment.
+(define ((ask) env str hardk softk ok) (ok #f env))
 
+;;; Runs parser p in environment altered by f.
+(define ((local f p) env str hardk softk ok)
+  (p (f env) str hardk softk ok))
+
+;;; Choice. Returns the result of the first succeeding parser. Backtracks and
+;;; chooses the next parser from the list on soft failure. Propagates hard
+;;; failure.
 (define ((psum ps) env str hardk softk ok)
   (let ([savepoint (mark str)])
     (match ps
@@ -212,11 +262,13 @@
 
 (define choice (nary psum))
 
+;;; Parser that always fails soft.
 (define (pzero env str hardk softk ok)
   (softk (location str) "pzero called"))
 
+;;; Parser that expects end-of-input.
 (define (peof env str hardk softk ok)
-  (if (eof? str) (ok #f (void))
+  (if (empty? str) (ok #f (void))
     (softk (location str) "expected EOF")))
 
 
@@ -241,43 +293,46 @@
 
 (define (between pre post x) (*> pre (<* x post)))
 
-(define ((pfilter parser msg pred) env str hardk softk ok)
+(define ((pfilter parser msgf pred) env str hardk softk ok)
   (let ([loc (location str)])
     (parser env str hardk softk
       (lambda (ate res)
         (if (pred res) (ok ate res)
-          ((if ate hardk softk) loc msg))))))
+          ((if ate hardk softk) loc (msgf res)))))))
 
 
 ;;; Useful primitives
-(define (string expect)
-  (let ([len (string-length expect)])
-    (if (= 0 len) (return (void))
-      (lambda (env str hardk softk ok)
-        (let ([loc (location str)]
-              [got (read-string str len)])
-          (if (string=? got expect) (ok #t expect)
-            (hardk loc
-              (string-append
-                "expected " (repr expect)
-                ", got" (repr got)))))))))
+(define (take n)
+  (if (= 0 n) (return (void))
+    (lambda (env str hardk softk ok)
+      (let ([got (read-string str n)])
+        (ok (< 0 (sequence-length got)) got)))))
 
-(define (token expect) (try (string expect)))
+(define (expect seq [test equal?])
+  (pfilter (take (sequence-length seq))
+    (lambda (got) (string-append "expected " (repr seq) ", got" (repr got)))
+    (partial test seq)))
 
-(define (any-char env str hardk softk ok)
-  (let ([c (read-char str)])
-    (if (eof-object? c) (softk (location str) "unexpected EOF")
-      (ok #t c))))
+(define (token s) (try (expect s)))     ;TODO: remove?
 
-(define (any-of s)
-  (let ([l (string->list s)])
-    (try (pfilter any-char (string-append "expected any of " (repr s))
-           (lambda (c) (member c l))))))
+(define (take-one env str hardk softk ok)
+  (if (empty? str) (softk (location str) "unexpected EOF")
+    (ok #t (read-one str))))
 
-(define (none-of s)
-  (let ([l (string->list s)])
-    (try (pfilter any-char (string-append "expected none of " (repr s))
-           (lambda (c) (not (member c l)))))))
+(define (peek-one env str hardk softk ok)
+  (if (empty? str) (softk (location str) "unexpected EOF")
+    (ok #f (peek str))))
+
+(define (satisfy p [msgf (lambda (c) (string-append "unexpected " (repr c)))])
+  (try (pfilter take-one msgf p)))
+
+(define (any-of s [test equal?])
+  (satisfy (lambda (c) (sequence-ormap (partial test c) s))
+    (lambda (c) (string-append "expected one of " (repr s)))))
+
+(define (none-of s [test equal?])
+  (satisfy (lambda (c) (not (seqence-ormap (partial test c) s)))
+    (lambda (c) (string-append "expected none of " (repr s)))))
 
 (define (parens x) (between (token "(") (token ")") x))
 
@@ -290,25 +345,9 @@
 
 
 ;; ;;; Simple parser for s-expressions
-;; (define p-symbol
-;;   (<$> (compose string->symbol list->string)
-;;        (many1 (choice alpha digit (any-of "-_$@!?#%^&*~<>=/")))))
-
-;; (define p-num
-;;   (<$> (compose string->number list->string)
-;;     (<$> append (option '() (list* (any-of "-")))
-;;                 (many1 digit))))
-
-;; (define p-atom (choice p-num p-symbol))
-;; (define p-sexp (choice p-atom (parens (eta p-exps)))) ;eta breaks circularity
-;; (define p-exps
-;;   (*> opt-whitespace
-;;       (sep-end-by p-sexp whitespace)))
-
-
-;;; Parser for a simple ML-like surface syntax.
-(define p-ident (<$> (compose string->symbol list->string)
-                     (many1 (choice alpha digit (any-of "_")))))
+(define p-symbol
+  (<$> (compose string->symbol list->string)
+       (many1 (choice alpha digit (any-of "-_$@!?#%^&*~<>=/")))))
 
 (define p-num
   (<$> (compose string->number list->string)
@@ -318,18 +357,41 @@
 (define p-string
   (<$> list->string
     (between (any-of "\"") (any-of "\"")
-      (many (choice (none-of "\\\"")
-                    (*> (any-of "\\") any-char))))))
+      (many (choice (none-of "\"\\")
+                    ;; TODO: escape sequences
+                    (*> (any-of "\\") take-one))))))
 
-(define p-atom (choice p-ident p-num p-string))
+(define p-atom (choice p-num p-symbol p-string))
+(define p-sexp (choice p-atom (parens (eta p-exps)))) ;eta breaks circularity
+(define p-exps
+  (*> opt-whitespace
+      (sep-end-by p-sexp whitespace)))
 
-(define p-expr
-  (choice
-    (eta p-let)
-    p-atom))
+
+;;; Parser for a simple ML-like surface syntax.
+;; (define p-ident (<$> (compose string->symbol list->string)
+;;                      (many1 (choice alpha digit (any-of "_")))))
 
-(define p-let (*> (try (*> (string let) whitespace))
-                  ))
+;; (define p-num
+;;   (<$> (compose string->number list->string)
+;;     (<$> append (option '() (list* (any-of "-")))
+;;                 (many1 digit))))
+
+;; (define p-string
+;;   (<$> list->string
+;;     (between (any-of "\"") (any-of "\"")
+;;       (many (choice (none-of "\\\"")
+;;                     (*> (any-of "\\") any-char))))))
+
+;; (define p-atom (choice p-ident p-num p-string))
+
+;; (define p-expr
+;;   (choice
+;;     (eta p-let)
+;;     p-atom))
+
+;; (define p-let (*> (try (*> (string "let") whitespace))
+;;                   ))
 
 
 (displayln "loaded parse-monoid.rkt")
