@@ -365,6 +365,8 @@
 (define p-sexp (choice p-atom (parens (eta p-exps)))) ;eta breaks circularity
 (define p-exps
   (*> opt-whitespace
+  ;; TODO: sexps don't have to be separated by whitespace if ending is
+  ;; unambiguous. (Really I should just tokenize.)
       (sep-end-by p-sexp whitespace)))
 
 
