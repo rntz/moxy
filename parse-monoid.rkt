@@ -331,7 +331,7 @@
     (lambda (c) (string-append "expected one of " (repr s)))))
 
 (define (none-of s [test equal?])
-  (satisfy (lambda (c) (not (seqence-ormap (partial test c) s)))
+  (satisfy (lambda (c) (not (sequence-ormap (partial test c) s)))
     (lambda (c) (string-append "expected none of " (repr s)))))
 
 (define (parens x) (between (token "(") (token ")") x))
