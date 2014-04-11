@@ -345,34 +345,36 @@
 
 
 ;; ;;; Simple parser for s-expressions
-(define p-symbol
-  (<$> (compose string->symbol list->string)
-       (many1 (choice alpha digit (any-of "-_$@!?#%^&*~<>=/")))))
+;; (define p-symbol
+;;   (<$> (compose string->symbol list->string)
+;;        (many1 (choice alpha digit (any-of "-_$@!?#%^&*~<>=/")))))
 
-(define p-num
-  (<$> (compose string->number list->string)
-    (<$> append (option '() (list* (any-of "-")))
-                (many1 digit))))
+;; (define p-num
+;;   (<$> (compose string->number list->string)
+;;     (<$> append (option '() (list* (any-of "-")))
+;;                 (many1 digit))))
 
-(define p-string
-  (<$> list->string
-    (between (any-of "\"") (any-of "\"")
-      (many (choice (none-of "\"\\")
-                    ;; TODO: escape sequences
-                    (*> (any-of "\\") take-one))))))
+;; (define p-string
+;;   (<$> list->string
+;;     (between (any-of "\"") (any-of "\"")
+;;       (many (choice (none-of "\"\\")
+;;                     ;; TODO: escape sequences
+;;                     (*> (any-of "\\") take-one))))))
 
-(define p-atom (choice p-num p-symbol p-string))
-(define p-sexp (choice p-atom (parens (eta p-exps)))) ;eta breaks circularity
-(define p-exps
-  (*> opt-whitespace
-  ;; TODO: sexps don't have to be separated by whitespace if ending is
-  ;; unambiguous. (Really I should just tokenize.)
-      (sep-end-by p-sexp whitespace)))
+;; (define p-atom (choice p-num p-symbol p-string))
+;; (define p-sexp (choice p-atom (parens (eta p-exps)))) ;eta breaks circularity
+;; (define p-exps
+;;   (*> opt-whitespace
+;;   ;; TODO: sexps don't have to be separated by whitespace if ending is
+;;   ;; unambiguous. (Really I should just tokenize.)
+;;       (sep-end-by p-sexp whitespace)))
 
 
-;;; Parser for a simple ML-like surface syntax.
-;; (define p-ident (<$> (compose string->symbol list->string)
-;;                      (many1 (choice alpha digit (any-of "_")))))
+;; ;;; Parser for a simple ML-like surface syntax.
+;; (define p-ident
+;;   (<$> (compose string->symbol list->string cons)
+;;     (choice alpha (any-of "_"))
+;;     (many (choice alpha digit (any-of "_")))))
 
 ;; (define p-num
 ;;   (<$> (compose string->number list->string)
@@ -383,7 +385,7 @@
 ;;   (<$> list->string
 ;;     (between (any-of "\"") (any-of "\"")
 ;;       (many (choice (none-of "\\\"")
-;;                     (*> (any-of "\\") any-char))))))
+;;                     (*> (any-of "\\") take-one))))))
 
 ;; (define p-atom (choice p-ident p-num p-string))
 
@@ -392,8 +394,8 @@
 ;;     (eta p-let)
 ;;     p-atom))
 
-;; (define p-let (*> (try (*> (string "let") whitespace))
-;;                   ))
+;; (define p-let (*> (try (*> (token "let") whitespace))
+;;                 ))
 
 
 (displayln "loaded parse-monoid.rkt")
