@@ -13,6 +13,9 @@
 (define ((nary f) . as) (f as))
 (define ((unary f) xs) (apply f xs))
 
+(define list->number (compose string->number list->string))
+(define list->symbol (compose string->symbol list->string))
+
 (define (foldl1 f xs)
   (match xs
     ['() (error "foldl1 called on empty list")]
@@ -280,6 +283,8 @@
 (define (many1 p) (<$> cons p (eta (many p))))
 (define (skip-many p) (optional (skip-many1 p)))
 (define (skip-many1 p) (*> p (eta (skip-many p))))
+(define (str-many p) (<$> list->string (many p)))
+(define (str-many1 p) (<$> list->string (many1 p)))
 
 (define (sep-by p sep) (option '() (sep-by1 p sep)))
 (define (sep-by1 p sep) (<$> cons p (many (*> sep p))))
