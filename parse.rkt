@@ -163,11 +163,8 @@
         (set! contents empty-stream)))))
 
 
-;;; Monoids, represented explicitly.
-
-
 ;;; A parser is a function that takes:
-;;; - the extensible environment (a value of some monoid)
+;;; - an environment
 ;;; - an input stream
 ;;; - a hard failure continuation
 ;;; - a soft failure continuation
