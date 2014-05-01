@@ -83,10 +83,26 @@
 
 (define p-block (between lbrace rbrace p-decls))
 
+(define p-lambda
+  (tag 'lambda
+    (*> (keysym "\\") p-params)
+    p-block))
+
+(define p-else
+  (choice p-block
+    (<$> (lambda (exp) `((expr ,exp))) (eta p-if))))
+
+(define p-if
+  (tag 'if
+    (*> (keyword "if") p-expr)
+    p-block
+    (option '((empty)) (*> (keyword "else") p-else))))
+
 ;; Parses an expr that isn't a function call.
 ;; TODO: lambdas, conditionals
 (define p-nocall
-  (choice (parens p-expr) (tag 'block p-block) p-list p-atom))
+  (choice (parens p-expr) (tag 'block p-block)
+    p-if p-lambda p-list p-atom))
 
 (define p-args (parens (p-listish p-expr)))
 
