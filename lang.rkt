@@ -99,7 +99,7 @@
     (option '((empty)) (*> (keyword "else") p-else))))
 
 ;; Parses an expr that isn't a function call.
-;; TODO: lambdas, conditionals
+;; TODO: return, case, dict literals
 (define p-nocall
   (choice (parens p-expr) (tag 'block p-block)
     p-if p-lambda p-list p-atom))
