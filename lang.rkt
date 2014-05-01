@@ -79,7 +79,7 @@
     (<$> cons p-fun-decl (eta p-decls))
     (<$> cons (tag 'expr p-expr)
               (option '() (*> semi (eta p-decls))))
-    (return '((empty)))))
+    (return '(empty))))
 
 (define p-block (between lbrace rbrace p-decls))
 
@@ -96,7 +96,7 @@
   (tag 'if
     (*> (keyword "if") p-expr)
     p-block
-    (option '((empty)) (*> (keyword "else") p-else))))
+    (option '(empty) (*> (keyword "else") p-else))))
 
 ;; Parses an expr that isn't a function call.
 ;; TODO: return, case, dict literals
@@ -128,13 +128,12 @@
 ;;   | (return EXPR)
 ;;   -- TODO: case-expression
 ;;
-;; BLOCK ::= (DECL*)
+;; BLOCK ::= (DECL* empty?)
 ;;
 ;; DECL
 ;; ::= (let PAT EXPR)
 ;;   | (fn NAME ((VAR*) VAR?) BLOCK)
 ;;   | (expr EXPR)
-;;   | (empty)
 ;;
 ;; PAT ::= SYMBOL
 
