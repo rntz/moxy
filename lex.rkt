@@ -6,11 +6,12 @@
 (define-lex-abbrevs
   [eol "\n"]
   [comment (:seq "#" (:* (:~ eol)))]
+  ;; [inline-space (:& whitespace (:~ eol))]
   [nat (:+ numeric)]
   [ident-init (:or alphabetic (char-set "_"))]
   [ident-mid  (:or ident-init numeric)]
   [ident (:seq ident-init (:* ident-mid))]
-  [symbol (:+ (char-set "`~!@$%^&*-_=+\\:<>/?|,."))]
+  [symbol (:+ (char-set "`~!@$%^&*-_=+\\:<>/?|,.;"))]
   ;; Might want to loosen number definition.
   ;; Currently rejects: ".0" "1." "-.0" etc.
   ;; Note that "-12.-3" lexes as: (-12 .- 3)
@@ -28,7 +29,7 @@
 
 (define yak-lex
   (lexer-src-pos
-    ;; Whitespace & comments are ignored
+    ;; Whitespace & comments are ignored, except newlines
     [(:+ whitespace) (return-without-pos (yak-lex input-port))]
     [comment (return-without-pos (yak-lex input-port))]
     ;; Simple cases
@@ -58,4 +59,4 @@
     [(eof) (raise 'exn:read)]
     [any-char (raise 'exn:read)]))
 
-(display "loaded lex.rkt\n")
+(displayln "loaded lex.rkt")

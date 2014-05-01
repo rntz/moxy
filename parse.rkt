@@ -144,7 +144,7 @@
       (when (empty?) (error "tried to read-one from end of stream-stream%"))
       (begin0
         (stream-first contents)
-        (set! contents (stream-tail contents))))
+        (set! contents (stream-tail contents 1))))
 
     (define/public (read-string n)
       (if (empty?) '()
@@ -161,6 +161,8 @@
       (begin0
         (stream->list contents)
         (set! contents empty-stream)))))
+
+(define (stream-stream s) (new stream-stream% [stream s]))
 
 
 ;;; A parser is a function that takes:
@@ -213,6 +215,7 @@
 (define (seq ps) (foldr (lift2 cons) (return '()) ps))
 (define list* (nary seq))
 (define (<$> f . ks) (fmap1 (unary f) (seq ks)))
+(define (lift f) (partial <$> f))
 
 (define >>=
   (case-lambda
@@ -311,16 +314,20 @@
       (let ([got (read-string str n)])
         (ok (< 0 (sequence-length got)) got)))))
 
-(define (expect seq [test equal?])
-  (pfilter (take (sequence-length seq))
-    (lambda (got) (string-append "expected " (repr seq) ", got" (repr got)))
-    (partial test seq)))
-
-(define (token s) (try (expect s)))     ;TODO: remove?
+(define (expect-seq seq [test equal?])
+  (try
+    (pfilter (take (sequence-length seq))
+      (lambda (got) (string-append "expected " (repr seq) ", got" (repr got)))
+      (partial test seq))))
 
 (define (take-one env str hardk softk ok)
   (if (empty? str) (softk (location str) "unexpected EOF")
     (ok #t (read-one str))))
+
+(define (expect t [test equal?])
+  (try (pfilter take-one
+         (lambda (got) (string-append "expected " (repr t) ", got " (repr got)))
+         (partial test t))))
 
 (define (peek-one env str hardk softk ok)
   (if (empty? str) (softk (location str) "unexpected EOF")
@@ -336,8 +343,6 @@
 (define (none-of s [test equal?])
   (satisfy (lambda (c) (not (sequence-ormap (partial test c) s)))
     (lambda (c) (string-append "expected none of " (repr s)))))
-
-(define (parens x) (between (token "(") (token ")") x))
 
 (define alpha (any-of "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
 (define digit (any-of "0123456789"))
