@@ -1,0 +1,52 @@
+decls ::= decl*
+
+-- Should everything here be a syntax extension, incl. val, etc?
+decl ::= "val" pat "=" expr
+       | "fun" ident fn-branches
+       | "rec" decl ("and" decl)*
+       | keyword EXTENSION...
+       -- Should first ident be required to be uppercase?
+       | "tag" ident ident*
+       -- Should this be a syntax extension?
+       | "local" decls "in" decls "end"?
+
+fn-branches ::= "|"? fn-branch ("|" fn-branch)*
+fn-branch ::= pat* "=" expr
+
+pat ::= ident
+      | ident pats              -- constructor pattern
+      | atomic-literal
+      | keyword EXTENSION...
+
+pats ::=
+       | pat pats
+       | "{}"                   -- "ignore the rest"; should be extension
+
+expr ::= ident
+       | atomic-literal | literal
+       | "(" expr ")"
+       | expr binop expr
+       -- special forms
+       | "let" decls "in" expr "end"?
+       | "case" expr ("|" pat "." expr)* "end"?
+       -- Functions
+       | expr expr
+       | "\" params "." expr "end"? -- TODO: case-lambda? rec-lambda?
+       -- following should be syntax extensions eventually
+       | list-expr              -- should extend literal
+       | expr ";" expr          -- should extend binop
+       | "if" expr "then" expr "else" expr -- should extend expr
+       | keyword EXTENSION...
+
+list-expr = "[" expr ("," expr)* ","? "]"
+
+-- TODO: bool should be defined in-language
+atomic-literal ::= int | string | bool
+
+literal ::= keyword EXTENSION...
+
+-- should be patterns eventually?
+params ::= ident*
+
+-- atomic literals
+lit ::= 
