@@ -1,3 +1,6 @@
+; #lang racket
+; (provide tokenize dump)
+
 ;; uses package: parser-tools-lib
 (require racket/stream)
 (require parser-tools/lex)

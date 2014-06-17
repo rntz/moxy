@@ -2,7 +2,7 @@
 ;;; dynamically-typed language with vaguely ML-ish surface syntax. Written for
 ;;; the purpose of learning Racket and exploring parser-combinators in a
 ;;; language that isn't Haskell.
-#lang racket
+; #lang racket
 
 ;;; Miscellaneous utilities
 (define (repr x)
