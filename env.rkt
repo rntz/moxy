@@ -25,6 +25,7 @@
 (define-syntax-rule (define-extension-point name empty join)
   (define name (make-extension-point (quote name) empty join)))
 
+
 ;; Environments are immutable hashtables, mapping extension-points to their
 ;; monoid values. If an extension-point is absent, it is the same as being
 
