@@ -1,0 +1,75 @@
+decls ::= decl*
+
+-- (A @ B)* means "sequence of alternating A and B"
+-- may start/end with either A or B.
+-- may be abbreviated A@B*
+
+-- Should everything here be a syntax extension, incl. val, etc?
+decl ::= "val" pat "=" expr
+       | "fn" fn-branches
+       | "rec" decl ("and" decl)*
+       | keyword EXTENSION...
+       -- Should first ident be required to be uppercase?
+       | "tag" ident "(" idents ")"
+       -- Should this be a syntax extension?
+       | "local" decls "in" decls "end"?
+
+fn-branches ::= (fn-branch @ "|")*
+fn-branch ::= ident "(" pats ")" "=" expr
+
+idents ::= (ident @ ",")*
+
+pat ::= ident
+      | ident "(" pats ")"              -- constructor pattern
+      | atomic-literal
+      | keyword EXTENSION...
+
+pats ::= (pat @ ",")*
+       -- TODO: this should be done later, with listishes.
+       | "{}"                   -- "ignore the rest"; should be extension
+
+expr ::= ident
+       | atomic-literal | literal
+       | "(" expr ")"
+       | expr binop expr
+       -- special forms
+       | "let" decls "in" expr "end"?
+       | "case" expr ("|" pat "." expr)* "end"?
+       -- Functions
+       | expr "(" arguments ")"
+       | "\" "(" params ")" expr "end"? -- TODO: case-lambda? rec-lambda?
+       -- following should be syntax extensions eventually
+       | "[" (expr @ ",")* "]"  -- should extend literal
+       | expr ";" expr          -- should extend binop
+       | "if" expr "then" expr "else" expr -- should extend expr
+       | keyword EXTENSION...
+
+-- TODO: bool should be defined in-language
+atomic-literal ::= int | string | bool
+
+literal ::= keyword EXTENSION...
+
+arguments ::= (expr @ ",")*
+
+-- should be patterns eventually?
+params ::= (ident @ ",")*
+
+-- atomic literals
+lit ::=
+
+----------
+
+fn not(True) = False
+ | not(False) = True
+
+fn id(x) = x
+
+rec fn odd(0) = False
+     | odd(n) = even(n-1)
+and fn even(0) = True
+     | even(n) = odd(n-1)
+
+fn fib(n) =
+   let fn loop(0,a,b) = b
+        | loop(n,a,b) = loop(n-1, b, a+b)
+   in loop(n, 0, 1)
