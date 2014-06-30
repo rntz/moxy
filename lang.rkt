@@ -1,8 +1,13 @@
-(require racket/stream)
+#lang racket
 
-;; TODO: use the racket module system for these things
-(load "lex.rkt")
-(load "parse.rkt")
+(require racket/stream)
+(require (only-in parser-tools/lex position-token-token))
+
+(require "util.rkt")
+(require "lex.rkt")
+(require "parse.rkt")
+
+;;; TODO: provide
 
 ;; Utility wrapper
 (define (parse-with parser port)
@@ -48,15 +53,15 @@
 ;; A comma-separated-list of ps, except that ";" can be used to indicate a cons
 ;; at the very end. For example, "1,2;3". Also, trailing commas are allowed, as
 ;; in "1,2,3,".
-(define (p-listish p)
-  (<$> cons
-    (sep-end-by p comma)
-    (option '() (fmap1 list (*> semi p)))))
+;; (define (p-listish p)
+;;   (<$> cons
+;;     (sep-end-by p comma)
+;;     (option '() (fmap1 list (*> semi p)))))
 
-(define p-list
-  (between lbracket rbracket
-    (<$> (lambda (x) `(list ,@x))
-         (p-listish p-expr))))
+;; (define p-list
+;;   (between lbracket rbracket
+;;     (<$> (lambda (x) `(list ,@x))
+;;          (p-listish p-expr))))
 
 (define p-pat p-ident)
 
@@ -69,7 +74,7 @@
 
 (define p-fun-decl
   (tag 'fn
-    (*> (keyword "fn") p-ident)
+    (*> (keyword "fun") p-ident)
     (parens p-params)
     (eta p-block)))
 

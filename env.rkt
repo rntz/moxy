@@ -1,4 +1,12 @@
-;; #lang racket
+#lang racket
+
+(require "util.rkt")
+
+(provide
+  extension-point make-extension-point
+  extension-point-name extension-point-empty extension-point-join
+  define-extension-point
+  env-empty env-join env-make env-get)
 
 (struct extension-point (uid name empty join)
   #:constructor-name make-extension-point-internal
@@ -19,27 +27,12 @@
 
 ;; Environments are immutable hashtables, mapping extension-points to their
 ;; monoid values. If an extension-point is absent, it is the same as being
+
 ;; mapped to its empty value.
 (define env-empty (hash))
 
-(define (env-join-2 a b)
-  (cond
-    [(dict-empty? a) b]
-    [(dict-empty? b) a]
-    [else
-      ;; god this is inefficient
-      (dict-for-each b
-        (lambda (k v2)
-          (set! a (dict-update a k
-                    (lambda (v1) ((extension-point-join k) v1 v2))
-                    (extension-point-empty k)))))
-      a]))
-
-(define/match (env-join . es)
-  [('()) env-empty]
-  [(`(,a)) a]
-  [(`(,a ,b)) (env-join-2 a b)]
-  [((cons a as)) (foldl env-join-2 a as)])
+(define (env-join . es)
+  (hash-unions es extension-point-join))
 
 (define (env-make ext-point value)
   (hash ext-point value))

@@ -1,48 +1,27 @@
+#lang racket
+
 (require racket/stream)
 (require racket/sequence)
 
+(require "util.rkt")
+
+(provide
+  string-stream stream-stream
+  parse-string
+  return fail fmap1 fmap2 lift1 lift2 seq list* lift
+  >>= <* *> <$>
+  try ask local
+  psum choice pzero peof
+  option optional many many1 skip-many skip-many1 str-many str-many1
+  sep-by sep-by1 sep-by1 end-by end-by1 sep-end-by sep-end-by1
+  between pfilter
+  take expect-seq take-one expect peek-one satisfy any-of none-of
+  alpha digit space whitespace opt-whitespace
+  )
+
 ;;; Miscellaneous utilities
-(define (const x) (lambda _ x))
-(define (println x) (print x) (display "\n"))
-(define (repr x)
-  (with-output-to-string (lambda () (write x))))
-
-(define (map_ f . xs) (apply map f xs) (void))
-
-(define ((partial f . as) . bs) (apply f (append as bs)))
-(define ((nary f) . as) (f as))
-(define ((unary f) xs) (apply f xs))
-
 (define list->number (compose string->number list->string))
 (define list->symbol (compose string->symbol list->string))
-
-(define (foldl1 f xs)
-  (match xs
-    ['() (error "foldl1 called on empty list")]
-    [`(,x) x]
-    [(cons x xs) (foldl f x xs)]))
-
-;;; General syntax
-(define-syntax le-accum##               ;the ## is for ugliness
-  (syntax-rules ()
-    [(_ acc e) (letrec acc e)]
-    [(_ (acc ...) id ex rest ... e)
-      (le-accum## (acc ... (id ex)) rest ... e)]))
-
-(define-syntax le
-  (syntax-rules ()
-    [(le bindings ... exp)
-      (le-accum## () bindings ... exp)]))
-
-(define-syntax-rule (le1 x e body ...) (let ((x e)) body ...))
-
-(define-syntax-rule (matches? exp pat)
-  (match exp [pat #t] [_ #f]))
-
-(define-syntax-rule (lambda-rec name rest ...)
-  (letrec ((name (lambda rest ...))) name))
-
-(define-syntax-rule (eta f) (lambda x (apply f x)))
 
 ;;; Syntax for interfaces
 (define-syntax define-interface
