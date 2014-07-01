@@ -10,7 +10,7 @@ Compound types stolen from Racket:
 - dictionaries (immutable hashes)
 look at haskell's Data.Map for appropriate interface
 
-Tagged values, represented by a struct, consisting of
+Anns (tagged values), represented by a struct, consisting of
 - tag: a tag (see below)
 - args: an immutable vector of arguments (of length tag.arity)
 
