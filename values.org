@@ -1,0 +1,25 @@
+* Values in MLoid
+All values are immutable.
+
+Simple types stolen from Racket:
+- numbers
+- strings
+- functions
+
+Compound types stolen from Racket:
+- dictionaries (immutable hashes)
+look at haskell's Data.Map for appropriate interface
+
+Tagged values, represented by a struct, consisting of
+- tag: a tag (see below)
+- args: an immutable vector of arguments (of length tag.arity)
+
+Tags are not exposed directly in MLoid, but are represented as a struct containing:
+- name: a symbol
+- uid: a unique identifier (gensym)
+- arity: natural number indicating constructor arity
+
+# No lists
+In particular, MLoid does *not* have racket-style lists.
+(Of course, "let tag Cons(x,xs) tag Nil in ..." should fix this.
+If this turns out to be a problem, can reverse this decision.
