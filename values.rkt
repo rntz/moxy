@@ -13,7 +13,9 @@
   hash-empty? hash-count                ;re-exports
   hash-empty hash-single
   hash-has? hash-lookup hash-get hash-get-or-else
-  hash-put hash-put-with)
+  hash-put hash-put-with
+  hash-delete
+  hash-alter)
 
 (define (hash-empty) (hash))
 (define (hash-single k v) (hash k v))
@@ -31,6 +33,14 @@
 (define (hash-put k v h) (hash-set h k v))
 (define (hash-put-with k v h f)
   (hash-put k (maybe v (partial f v) (hash-lookup k h)) h))
+
+(define (hash-delete k h) (hash-remove h k))
+
+;; f takes (Maybe v) -> (Maybe v)
+(define (hash-alter k h f)
+  (match (f (hash-lookup k h))
+    [(none) (hash-delete k h)]
+    [(just x) (hash-put k x h)]))
 
 
 ;; Tag & annotated value interface
@@ -106,9 +116,7 @@
                      #'([(_ args (... ...))
                          #'(make-ann tag-name args (... ...))]
                         [_:id #'(lambda (fields ...)
-                                  (make-ann tag-name fields ...))])))
-              )))
-      )))
+                                  (make-ann tag-name fields ...))])))))))))
 
 
 ;; Builtin tags.
