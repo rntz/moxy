@@ -7,8 +7,8 @@
 
 
 ;; Hashtable interface. Modelled on
-;; TODO: more functionality
 ;; http://hackage.haskell.org/package/containers-0.5.5.1/docs/Data-Map-Strict.html
+;; TODO: more functionality
 (provide
   hash-empty? hash-count                ;re-exports
   hash-empty hash-single
@@ -82,14 +82,15 @@
 
 ;; TODO: equality for anns. or does 'equal? just work?
 
-;; Make tagged values more easily match-able
-;; note the single n, versus double n in "ann".
+
+;; Defines a new tag, along with a constructor & match-expander for it.
 (define-syntax (define-tag stx)
   (with-syntax* ([(_ name fields ...) stx]
                  [tag-name (format-id stx "tag:~a" #'name)])
     (let ([field-list (syntax->datum #'(fields ...))])
       #`(begin
           (define tag-name (new-tag 'name '#,field-list))
+          ;; Make tagged values more easily match-able
           (define-match-expander name
             (lambda (stx1)
               (syntax-case stx1 ()
