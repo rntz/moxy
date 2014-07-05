@@ -41,7 +41,7 @@
     [(None) (hash-delete k h)]
     [(Just x) (hash-put k x h)]))
 
-(define (hash-union a b)
+(define (hash-union a b [combine (lambda (x y) y)])
   (cond
     [(hash-empty? a) b]
     [(hash-empty? b) a]
