@@ -13,16 +13,15 @@
   hash-empty? hash-count                ;re-exports
   hash-empty hash-single
   hash-has? hash-lookup hash-get hash-get-or-else
-  hash-put hash-put-with
-  hash-delete
-  hash-alter)
+  hash-put hash-put-with hash-delete hash-alter
+  hash-union)
 
 (define (hash-empty) (hash))
 (define (hash-single k v) (hash k v))
 
 (define (hash-has? k h) (hash-has-key? h k))
 (define (hash-lookup k h)
-  (if (hash-has? k h) (just (hash-ref h k)) none))
+  (if (hash-has? k h) (Just (hash-ref h k)) None))
 (define (hash-get k h)
   (hash-get-or-else k h (lambda () (error "key not in hash"))))
 (define (hash-get-or-else k h or-else)
@@ -32,15 +31,24 @@
 
 (define (hash-put k v h) (hash-set h k v))
 (define (hash-put-with k v h f)
-  (hash-put k (maybe v (partial f v) (hash-lookup k h)) h))
+  (hash-put k (maybe v (lambda (x) (f x v)) (hash-lookup k h)) h))
 
 (define (hash-delete k h) (hash-remove h k))
 
 ;; f takes (Maybe v) -> (Maybe v)
 (define (hash-alter k h f)
   (match (f (hash-lookup k h))
-    [(none) (hash-delete k h)]
-    [(just x) (hash-put k x h)]))
+    [(None) (hash-delete k h)]
+    [(Just x) (hash-put k x h)]))
+
+(define (hash-union a b)
+  (cond
+    [(hash-empty? a) b]
+    [(hash-empty? b) a]
+    [else
+      (hash-for-each b
+        (lambda (key val) (set! a (hash-put-with key val a combine))))
+      a]))
 
 
 ;; Tag & annotated value interface
@@ -120,12 +128,15 @@
 
 
 ;; Builtin tags.
-(provide tag:just just tag:none none maybe from-maybe)
+(provide tag:Just Just tag:None None maybe from-maybe Monoid ExtPoint)
 
-(define-tag just value)
-(define-tag none)
+(define-tag Just value)
+(define-tag None)
 
 (define (maybe default inject v)
-  (match v [(none) default] [(just x) (inject x)]))
+  (match v [(None) default] [(Just x) (inject x)]))
 
 (define (from-maybe default v) (maybe v identity v))
+
+(define-tag Monoid join empty)
+(define-tag ExtPoint name uid monoid)
