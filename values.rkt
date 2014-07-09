@@ -31,7 +31,9 @@
 
 (define (hash-put k v h) (hash-set h k v))
 (define (hash-put-with k v h f)
-  (hash-put k (maybe v (lambda (x) (f x v)) (hash-lookup k h)) h))
+  (hash-put k (maybe v (lambda (x) (f k x v))
+                     (hash-lookup k h))
+            h))
 
 (define (hash-delete k h) (hash-remove h k))
 
@@ -41,7 +43,7 @@
     [(None) (hash-delete k h)]
     [(Just x) (hash-put k x h)]))
 
-(define (hash-union a b [combine (lambda (x y) y)])
+(define (hash-union a b [combine (lambda (k x y) y)])
   (cond
     [(hash-empty? a) b]
     [(hash-empty? b) a]
@@ -53,10 +55,9 @@
 
 ;; Tag & annotated value interface
 (provide
-  new-tag tag-name tag-uid tag-arity tag-field-index
-  ann make-ann ann-tag ann-args ann-get-field
-  define-tag
-  )
+  new-tag tag? tag-name tag-uid tag-arity tag-field-index
+  ann ann? make-ann ann-tag ann-args ann-get-field ann-isa?
+  define-tag)
 
 ;; omit-define-syntaxes necessary to allow (define-match-expander ann) later
 (struct ann (tag args) #:transparent
@@ -98,17 +99,22 @@
     (ann-args ann)
     (tag-field-index (ann-tag ann) field-name)))
 
+(define (ann-isa? tag ann)
+  (and (ann? ann) (equal? tag (ann-tag ann))))
+
 ;; TODO: equality for anns. or does 'equal? just work?
 
 
 ;; Defines a new tag, along with a constructor & match-expander for it.
 (define-syntax (define-tag stx)
   (with-syntax* ([(_ name fields ...) stx]
-                 [tag-name (format-id stx "tag:~a" #'name)])
+                 [tag-name (format-id stx "tag:~a" #'name)]
+                 [name?    (format-id stx "~a?" #'name)])
     (let ([field-list (syntax->datum #'(fields ...))])
       #`(begin
           (define tag-name (new-tag 'name '#,field-list))
-          ;; Make tagged values more easily match-able
+          (define (name? x) (ann-isa? tag-name x))
+          ;; Define pattern-matcher & constructor
           (define-match-expander name
             (lambda (stx1)
               (syntax-case stx1 ()
@@ -124,14 +130,32 @@
                      #'([(_ args (... ...))
                          #'(make-ann tag-name args (... ...))]
                         [_:id #'(lambda (fields ...)
-                                  (make-ann tag-name fields ...))])))))))))
+                                  (make-ann tag-name fields ...))])))))
+          ;; For each field, define accessor
+          #,@(for/list ([i (in-naturals 0)]
+                        [field (syntax->list #'(fields ...))])
+               (with-syntax ([f field]
+                             [accessor (format-id stx "~a-~a" #'name field)])
+                 #`(define (accessor x)
+                     (if (name? x)
+                       (vector-ref (ann-args x) '#,i)
+                       ;; TODO: better error message
+                       (error "invalid use of accessor")))))))))
 
 
 ;; Builtin tags.
-(provide tag:Just Just tag:None None maybe from-maybe Monoid ExtPoint)
+(provide
+  tag:Just Just Just? Just-value
+  tag:None None None?
+  maybe? maybe from-maybe
+  tag:Monoid Monoid Monoid? Monoid-join Monoid-empty
+  tag:ExtPoint ExtPoint ExtPoint? ExtPoint-name ExtPoint-uid ExtPoint-monoid
+  ExtPoint-join ExtPoint-empty)
 
 (define-tag Just value)
 (define-tag None)
+
+(define (maybe? x) (or (Just? x) (None? x)))
 
 (define (maybe default inject v)
   (match v [(None) default] [(Just x) (inject x)]))
@@ -140,3 +164,6 @@
 
 (define-tag Monoid join empty)
 (define-tag ExtPoint name uid monoid)
+
+(define ExtPoint-join (compose Monoid-join ExtPoint-monoid))
+(define ExtPoint-empty (compose Monoid-empty ExtPoint-monoid))
