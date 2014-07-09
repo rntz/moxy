@@ -95,5 +95,3 @@
   (if (null? hashes) (hash)
     ;; relies on reduce not using its second argument if list is non-empty
     (reduce hashes (void) (lambda (x y) (dict-union x y combine)))))
-
-(displayln "util.rkt loaded")

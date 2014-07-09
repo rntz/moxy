@@ -8,6 +8,8 @@
 
 ;; Hashtable interface. Modelled on
 ;; http://hackage.haskell.org/package/containers-0.5.5.1/docs/Data-Map-Strict.html
+;;
+;; Needs to be defined here for access to Just, None.
 ;; TODO: more functionality
 (provide
   hash-empty? hash-count                ;re-exports
@@ -60,7 +62,8 @@
   define-tag)
 
 ;; omit-define-syntaxes necessary to allow (define-match-expander ann) later
-(struct ann (tag args) #:transparent
+(struct ann (tag args)
+  #:transparent
   #:methods gen:custom-write
   ;; mode is #t for 'write, #f for 'display, or 0 or 1 (indicating quoting
   ;; depth) for 'print.
@@ -101,8 +104,6 @@
 
 (define (ann-isa? tag ann)
   (and (ann? ann) (equal? tag (ann-tag ann))))
-
-;; TODO: equality for anns. or does 'equal? just work?
 
 
 ;; Defines a new tag, along with a constructor & match-expander for it.
