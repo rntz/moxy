@@ -68,11 +68,11 @@
 ;; Convention: extension point names begin with "@"
 ;; -- ParseEnv extension points --
 
-;; Maps tokens to (Parser Decl)s (see parts of speech, below)
+;; Maps tokens to (Parser decl)s (see parts of speech, below)
 (define-ExtPoint @decls hash-union (hash))
-;; Maps tokens to (Parser Expr)s
+;; Maps tokens to (Parser expr)s
 (define-ExtPoint @exprs hash-union (hash))
-;; Maps tokens to (Parser Pat)s
+;; Maps tokens to (Parser pat)s
 (define-ExtPoint @pats hash-union (hash))
 
 ;; -- ResolveEnv extension points --
@@ -125,18 +125,20 @@
           method ...))))
 
 (define-syntax (magical-hash stx)
-  #`(make-immutable-hash
-      #,(let loop ([kvs (cdr (syntax->list stx))])
-          (if (null? kvs) #''()
-            (let ([kv (car kvs)]
-                   [kvs (cdr kvs)])
-              (syntax-parse kv
-                [((name:id params:id ...) body ...)
-                  #`(letrec ([name (lambda (params ...) body ...)])
-                      (cons (cons 'name name) #,(loop kvs)))]
-                [(name:id value)
-                  #`(let ([name value])
-                      (cons (cons 'name name) #,(loop kvs)))]))))))
+  (let* ([bindings (cdr (syntax->list stx))]
+         [names (map (lambda (b) (syntax-parse b
+                              [(name:id value) #'name]
+                              [((name:id param:id ...) body ...) #'name]))
+                  bindings)]
+         [exprs (map (lambda (b) (syntax-parse b
+                              [(name:id value) #'value]
+                              [((name:id param:id ...) body ...)
+                                #'(lambda (param ...) body ...)]))
+                  bindings)])
+    (with-syntax ([(name ...) names] [(expr ...) exprs])
+      #`(make-immutable-hash
+          (letrec ((name expr) ...)
+            `((name . ,name) ...))))))
 
 ;;; ---- THE CODE I WANT TO WRITE ----
 ;; defines: define-decl, decl-{parse-ext,resolve-ext,compile}
