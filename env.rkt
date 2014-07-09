@@ -1,6 +1,7 @@
 #lang racket
 
 (require (for-syntax racket/syntax))    ;format-id
+(require syntax/parse (for-syntax syntax/parse))
 
 (require "util.rkt")
 (require "values.rkt")
@@ -29,7 +30,7 @@
 ;; monoid values. If an extension-point is absent, it is the same as being
 ;; mapped to its empty value.
 
-(provide env-empty env-join2 env-join env-monoid env-make env-get)
+(provide env-empty env-join2 env-join env-monoid env-single env-get)
 
 ;; hashtable type used for extension-point envs.
 ;;
@@ -51,7 +52,7 @@
 
 (define env-monoid (Monoid env-join2 env-empty))
 
-(define (env-make ext-point value)
+(define (env-single ext-point value)
   (make-immutable-ext-hash `((,ext-point . ,value))))
 
 (define (env-get ext ext-point)
@@ -65,85 +66,93 @@
   @vars @vars-join @vars-empty)
 
 ;; Convention: extension point names begin with "@"
-;; for ParseEnv:
+;; -- ParseEnv extension points --
+
 ;; Maps tokens to (Parser Decl)s (see parts of speech, below)
 (define-ExtPoint @decls hash-union (hash))
+;; Maps tokens to (Parser Expr)s
+(define-ExtPoint @exprs hash-union (hash))
+;; Maps tokens to (Parser Pat)s
+(define-ExtPoint @pats hash-union (hash))
 
-;; for ResolveEnv:
-;; variable scoping point
-;; maps variables to hashes of info about them.
+;; -- ResolveEnv extension points --
+
+;; maps var names to hashes of info about them.
 ;; hash keys:
-;; - id: the IR identifier to compile this var to.
+;; - id: the IR identifier for the value of this variable.
+;;
+;; Hash keys present for tags/ctors only:
+;; - tag-id: The IR id for the tag for this ctor.
+;; - tag-arity: Arity of ctor.
 (define-ExtPoint @vars hash-union (hash))
 
 
 ;; "Parts of speech": interfaces for various parts of the language AST.
 ;; E.g. expressions, declarations, patterns
 ;;
-;; These are defined by the interface they present so that people can add new
-;; forms with new behavior.
+;; Parts of speech are defined by the interface they present so that people can
+;; add new forms with new behavior. E.g. an Expr is anything that has a 'compile
+;; "method" that takes a ResolveEnv and produces an IR expression.
+;;
+;; Values of parts of speech (actual expr, decl, pattern nodes in the AST) are
+;; represented by hashes mapping "methods" to their values. So the following is
+;; just a convenience to make working with them in Racket easier.
 
-;; (define-syntax define-methods-prefixed
-;;   (syntax-rules ()
-;;     [(define-methods-prefixed iface prefix) (begin)]
-;;     [(define-methods-prefixed iface prefix name names ...)
-;;       (begin
-;;         (define-method-prefixed iface prefix name)
-;;         (define-methods-prefixed iface prefix names ...))]))
+(define-syntax (define-pos stx)
+  (with-syntax* ([(_ pos methods ...) stx]
+                 [define-pos_ (format-id stx "define-~a" #'pos)])
+    #`(begin
+        #,@(for/list ([method (syntax->list #'(methods ...))])
+             (syntax-parse method
+               [(name:id params:id ...)
+                 #`(define #,(format-id stx "~a-~a" #'pos #'name)
+                     (lambda (self params ...)
+                       ;; TODO: error message on hash-get failure?
+                       ((hash-get 'name self) params ...)))]
+               [name:id
+                 #`(define #,(format-id stx "~a-~a" #'pos #'name)
+                     (lambda (self) (hash-get 'name self)))]))
+        (define-syntax-rule
+          (define-pos_ name (field (... ...)) method (... ...))
+          (define-form pos name (field (... ...)) method (... ...))))))
 
-;; (define-syntax (define-form stx)
-;;   (with-syntax* ([(_ pos form (fields ...) body ...) stx]
-;;                   [pos<%>    (format-id stx "~a<%>" #'pos)]
-;;                   [pos:form% (format-id stx "~a:~a%" #'pos #'form)]
-;;                   [pos:form  (format-id stx "~a:~a" #'pos #'form)])
-;;     (let ([fields (syntax->list #'(fields ...))])
-;;       #`(begin
-;;           (define pos:form%
-;;             (class* object% (pos<%>)
-;;               #,@(for/list ([field fields]) #`(init-field #,field))
-;;               (super-new)
-;;               body ...))
-;;           (define (pos:form #,@fields)
-;;             (new pos:form% #,@(for/list ([field fields]) #`[#,field #,field])))
-;;           ))))
+(define-syntax (define-form stx)
+  (with-syntax* ([(_ pos form (field ...) method ...) stx]
+                 )
+    #`(define (form field ...)
+        (magical-hash
+          [field field] ...
+          method ...))))
 
-;; (define-syntax (define-pos stx)
-;;   (with-syntax* ([(_ pos (methods ...)) stx]
-;;                   [pos<%>     (format-id stx "~a<%>" #'pos)]
-;;                   [define-pos_ (format-id stx "define-~a" #'pos)])
-;;     #`(begin
-;;         (define pos<%> (interface () methods ...))
-;;         #,@(for/list ([method (syntax->list #'(methods ...))])
-;;              (with-syntax ([method method])
-;;                ;; e.g. (define decl-compile ...)
-;;                #`(define #,(format-id stx "~a-~a" #'pos #'method)
-;;                    (let ([g (generic pos<%> method)])
-;;                      (lambda (object . args) (send-generic object g . args))))))
-;;         (define-syntax-rule (define-pos_ form (fields (... ...)) body (... ...))
-;;           (define-form pos form (fields (... ...)) body (... ...))))))
+(define-syntax (magical-hash stx)
+  #`(make-immutable-hash
+      #,(let loop ([kvs (cdr (syntax->list stx))])
+          (if (null? kvs) #''()
+            (let ([kv (car kvs)]
+                   [kvs (cdr kvs)])
+              (syntax-parse kv
+                [((name:id params:id ...) body ...)
+                  #`(letrec ([name (lambda (params ...) body ...)])
+                      (cons (cons 'name name) #,(loop kvs)))]
+                [(name:id value)
+                  #`(let ([name value])
+                      (cons (cons 'name name) #,(loop kvs)))]))))))
 
-;; ;;; ---- THE CODE I WANT TO WRITE ----
-;; ;; defines interface pos:decl<%>
-;; ;; PROBLEM: parse-ext, resolve-ext, compile become specific to decl<%>
-;; ;; defines macro define-decl
+;;; ---- THE CODE I WANT TO WRITE ----
+;; defines: define-decl, decl-{parse-ext,resolve-ext,compile}
+(define-pos decl parse-ext resolve-ext (compile renv))
+(define-pos expr (compile renv))
 
-;; ;; defines: define-Decl, Decl, Decl-{parse-ext,resolve-ext,compile}
-;; (define-pos Decl (parse-ext resolve-ext compile))
+;; defines (lit value)
+(define-expr lit (value)
+  [(compile env) (list 'quote value)])
 
-;; (define-pos expr (compile))
-
-;; (define-expr lit (value) (define/public (compile env) (list 'quote value)))
-
-;; ;; defines class decl:val%
-;; ;; defines constructor decl:val
-;; (define-decl val (var expr)
-;;   (define id (gensym var))
-;;   (define/public (parse-ext) env-empty)
-;;   (define/public (resolve-ext)
-;;     (env-make @vars (hash var (hash 'id id))))
-;;   (define/public (compile env)
-;;     `((,id ,(expr-compile expr env)))))
+(define-decl val (var expr)
+  [id (gensym var)]
+  [parse-ext env-empty]
+  [resolve-ext
+    (env-single @vars (hash var (hash 'id id)))]
+  [(compile env)
+    `((,id ,(expr-compile expr env)))])
 
 ;;; ----- END CODE I WANT TO WRITE -----
-
-(displayln "env.rkt loaded")
