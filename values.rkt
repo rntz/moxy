@@ -28,7 +28,7 @@
   (hash-get-or-else k h (lambda () (error "key not in hash"))))
 (define (hash-get-or-else k h or-else)
   (if (procedure? or-else)
-    (hash-ref k h or-else)
+    (hash-ref h k or-else)
     (error "or-else argument to hash-get-or-else must be a procedure")))
 
 (define (hash-put k v h) (hash-set h k v))
