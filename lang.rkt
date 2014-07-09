@@ -141,5 +141,3 @@
 ;;   | (expr EXPR)
 ;;
 ;; PAT ::= SYMBOL
-
-(displayln "loaded lang.rkt")

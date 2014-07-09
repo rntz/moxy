@@ -62,5 +62,3 @@
     ;; TODO: better errors
     [(eof) (raise 'exn:read)]
     [any-char (raise 'exn:read)]))
-
-(displayln "loaded lex.rkt")
