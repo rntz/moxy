@@ -13,23 +13,28 @@
 ;; TODO: more functionality
 (provide
   hash-empty? hash-count                ;re-exports
-  hash-empty hash-single
-  hash-has? hash-lookup hash-get hash-get-or-else
+  hash-empty hash-single hash-from-list hash-from-keys-values
+  hash-has? hash-lookup hash-get
   hash-put hash-put-with hash-delete hash-alter
   hash-union)
 
 (define (hash-empty) (hash))
 (define (hash-single k v) (hash k v))
+(define (hash-from-list kvs)
+  ;; convert a list-list like ((a x) (b y)) to a cons-list ((a . x) (b . y)).
+  (make-immutable-hash (map (lambda (x) (apply cons x)) kvs)))
+(define (hash-from-keys-values keys values)
+  (hash-from-list (zip keys values)))
 
 (define (hash-has? k h) (hash-has-key? h k))
 (define (hash-lookup k h)
   (if (hash-has? k h) (Just (hash-ref h k)) None))
-(define (hash-get k h)
-  (hash-get-or-else k h (lambda () (error "key not in hash"))))
-(define (hash-get-or-else k h or-else)
-  (if (procedure? or-else)
-    (hash-ref h k or-else)
-    (error "or-else argument to hash-get-or-else must be a procedure")))
+(define (hash-get k h [or-else #f])
+  (cond
+    [(procedure? or-else) (hash-ref h k or-else)]
+    [(not or-else) (hash-ref h k)]
+    [else
+      (error "or-else argument to hash-get must be a procedure or #f")]))
 
 (define (hash-put k v h) (hash-set h k v))
 (define (hash-put-with k v h f)
@@ -85,11 +90,11 @@
 
 (define (new-tag name field-names)
   (make-tag name (gensym name) (length field-names)
-    (make-immutable-hash (zip-with cons field-names (in-naturals 0)))))
+    (hash-from-keys-values field-names (in-naturals 0))))
 
 (define (tag-field-index tag field-name)
   ;; TODO: better error message on failure
-  (hash-get-or-else field-name (tag-field-map tag)
+  (hash-get field-name (tag-field-map tag)
     (lambda () "tag has no such field")))
 
 (define (make-ann tag . args)
