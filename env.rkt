@@ -238,6 +238,22 @@
 
 ;; Patterns
 
+(define-pat pat:one () ;; "underscore" pattern, _, succeeds binding nothing
+  [resolveExt env-empty]
+  [(compile env subject on-success on-failure) on-success])
+
+(define-pat pat:zero (names) ;; pattern that always fails, binding names
+  [ids (map gensym names)]
+  [resolveExt (env-single @vars (hash-from-keys-values names
+                                  (map (lambda (x) (hash 'id x)) ids)))]
+  [(compile env subject on-success on-failure) on-failure])
+
+(define-pat pat:let (name expr) ;; always binds name to expr
+  [id (gensym name)]
+  [resolveExt (env-single @vars (hash name (hash 'id id)))]
+  [(compile env subject on-success on-failure)
+    `(let ((,id ,(expr-compile expr env))) ,on-success)])
+
 (define-pat pat:var (name)
   [id (gensym name)]
   [resolveExt (env-single @vars (hash name (hash 'id id)))]
@@ -273,3 +289,5 @@
              ,(pat-compile elem tmp
                 (loop (+ i 1) (env-join env (pat-resolveExt elem)))
                 on-failure)))))])
+
+;; TODO: pat:and, pat:or, pat:lit, pat:guard
