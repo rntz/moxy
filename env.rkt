@@ -248,6 +248,10 @@
     `((,tag-id (new-tag name params))
       (,id (lambda (,@params) (make-ann ,tag-id ,@params))))])
 
+;; ;; TODO
+;; (define-decl decl:define-extension-point (name oper unit))
+;; (define-decl decl:define-extension (point expr))
+
 ;; ;; (decl:module Symbol [Decl])
 ;; (define-decl decl:module (name body)
 ;;   [id (gensym name)]
