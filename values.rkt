@@ -2,6 +2,7 @@
 
 (require (for-syntax racket/syntax))    ;format-id
 (require racket/generic)                ;for gen:custom-write
+(require (only-in racket [hash-map racket/hash-map]))
 
 (require "util.rkt")
 
@@ -16,7 +17,7 @@
   hash-empty hash-single hash-from-list hash-from-keys-values
   hash-has? hash-lookup hash-get
   hash-put hash-put-with hash-delete hash-alter
-  hash-union)
+  hash-map hash-union)
 
 (define (hash-empty) (hash))
 (define (hash-single k v) (hash k v))
@@ -49,6 +50,11 @@
   (match (f (hash-lookup k h))
     [(None) (hash-delete k h)]
     [(Just x) (hash-put k x h)]))
+
+;; (f k v) --> new-v
+(define (hash-map h f)
+  (make-immutable-hash
+    (racket/hash-map h (lambda (k v) (cons k (f k v))))))
 
 (define (hash-union a b [combine (lambda (k x y) y)])
   (cond
