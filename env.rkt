@@ -277,6 +277,18 @@
     `((,tag-id (new-tag name params))
       (,id (lambda (,@params) (make-ann ,tag-id ,@params))))])
 
+;; ;; (decl:module Symbol [Decl])
+;; (define-decl decl:module (name body)
+;;   [id (gensym name)]
+;;   [info (hash 'id id)]
+;;   )
+
+;; ;; (decl:import Symbol Module)
+;; ;; where Module is a hash with (parseExt resolveExt) keys.
+;; ;; the Module info gets provided by the parsers.
+;; (define-decl decl:import (name nodule)
+;;   )
+
 
 ;; Patterns
 
