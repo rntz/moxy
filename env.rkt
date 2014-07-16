@@ -64,7 +64,8 @@
 ;; Built-in extension points
 (provide
   @decls @decls-join @decls-empty
-  @vars @vars-join @vars-empty)
+  @exprs @exprs-join @exprs-empty
+  @pats @pats-join @pats-empty)
 
 ;; Convention: extension point names begin with "@"
 ;; -- ParseEnv extension points --
@@ -76,16 +77,57 @@
 ;; Maps tokens to (Parser pat)s
 (define-ExtPoint @pats hash-union (hash))
 
+
 ;; -- ResolveEnv extension points --
+
+;; TODO: should ResolveEnv really be represented as an env? or is it too
+;; special-purpose? What legitimate extensions to ResolveEnv are possible? Do
+;; extensions need to keep in mind the difference between compile-time and
+;; run-time bindings, the way @vars does?
+
+(provide
+  env-mark-compile-time env-mask
+  @vars @vars-join @vars-empty)
 
 ;; maps var names to hashes of info about them.
 ;; hash keys:
+;; - type: one of '(var ctor mask)
 ;; - id: the IR identifier for the value of this variable.
+;; - compile-time: #t if the value of this identifier is available at
+;; compile-time.
 ;;
-;; Hash keys present for tags/ctors only:
+;; "Masks" indicate a variable is lexically bound, but cannot be used, because
+;; the thing being compiled in this ResolveEnv will be run at compile-time and
+;; the variable's value won't be available until run-time. Masks do not have a
+;; 'id key. Hash keys for masks:
+;; - info: The info-hash for the masked binding.
+;;
+;; Hash keys for ctors:
 ;; - tag-id: The IR id for the tag for this ctor.
 ;; - tag-arity: Arity of ctor.
 (define-ExtPoint @vars hash-union (hash))
+
+(define (@vars-var name id) (hash name (hash 'type 'var 'id id)))
+(define (@vars-ctor name id tag-id tag-arity)
+  (hash name (hash 'type 'ctor 'id id 'tag-id tag-id 'tag-arity tag-arity)))
+
+(define (env-mark-compile-time env)
+  (hash-put env
+    (hash-map (env-get @vars env)
+      (lambda (var info) (hash-put 'compile-time #t info)))
+    env))
+
+(define (env-mask env)
+  (hash-put env
+    (hash-map (env-get @vars env)
+      (lambda (var info)
+        (if (hash-get 'compile-time info (lambda () #f))
+          info
+          (hash 'type 'mask 'info info))))
+    env))
+
+;; Do I need this?
+; (define (env-unmask env) )
 
 
 ;; "Parts of speech": interfaces for various parts of the language AST.
