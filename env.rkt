@@ -157,19 +157,29 @@
 
 
 ;;; Builtin parts of speech and forms
-(define-pos decl
-  parseExt                              ; ParseEnv
-  resolveExt                            ; ResolveEnv
-  (compile renv))                       ; ResolveEnv -> [(Id, IR)]
-
 (define-pos expr
   (compile renv))                       ; ResolveEnv -> IR
+
+(define-pos decl
+  resolveExt                            ; ResolveEnv
+  (compile renv))                       ; ResolveEnv -> [(Id, IR)]
 
 (define-pos pat
   resolveExt
   ;; Not sure of the best way to present this interface.
   ;; ResolveEnv, IR, IR, IR -> IR
   (compile renv subject on-success on-failure))
+
+;; The "result" of parsing a top-level declaration. Not exactly a part of
+;; speech, but acts like one.
+(define-pos result
+  resolveExt
+  parseExt)
+
+(define-pos nodule ;; can't use "module", it means something in Racket
+  resolveExt
+  parseExt
+  name)
 
 
 ;; Expressions
@@ -209,60 +219,6 @@
         [(cons d ds)
           `(letrec ,(decl-compile d env)
              ,(loop ds (env-join env (decl-resolveExt d))))]))])
-
-
-;; Declarations
-;; (decl:val Symbol Expr)
-(define-decl decl:val (name expr)
-  [id (gensym name)]
-  [parseExt env-empty]
-  [resolveExt (env-single @vars (hash name (hash 'id id)))]
-  [(compile env) `((,id ,(expr-compile expr env)))])
-
-;; (decl:fun Symbol [Symbol] Expr)
-(define-decl decl:fun (name params expr)
-  ;; TODO: functions with branches
-  [id (gensym name)]
-  [parseExt env-empty]
-  [resolveExt (env-single @vars (hash name (hash 'id id)))]
-  [(compile env)
-    (let ([inner-env (env-join env resolveExt)])
-      `((,id ,(expr-compile (expr:lambda params expr) inner-env))))])
-
-;; (decl:rec [Decl])
-(define-decl decl:rec (decls)
-  [parseExt (env-join (map decl-parseExt decls))]
-  [resolveExt (env-join (map decl-resolveExt decls))]
-  [(compile env)
-    (let ([env (env-join env resolveExt)])
-      (apply append (map (lambda (x) (decl-compile x env)) decls)))])
-
-;; (decl:tag Symbol [Symbol])
-(define-decl decl:tag (name params)
-  [id (gensym (format "ctor:~a" name))]
-  [tag-id (gensym (format "tag:~a" name))]
-  [info (hash 'id id 'tag-id tag-id 'tag-arity (length params))]
-  [parseExt env-empty]
-  [resolveExt (env-single @vars (hash name info))]
-  [(compile env)
-    `((,tag-id (new-tag name params))
-      (,id (lambda (,@params) (make-ann ,tag-id ,@params))))])
-
-;; ;; TODO
-;; (define-decl decl:define-extension-point (name oper unit))
-;; (define-decl decl:define-extension (point expr))
-
-;; ;; (decl:module Symbol [Decl])
-;; (define-decl decl:module (name body)
-;;   [id (gensym name)]
-;;   [info (hash 'id id)]
-;;   )
-
-;; ;; (decl:import Symbol Module)
-;; ;; where Module is a hash with (parseExt resolveExt) keys.
-;; ;; the Module info gets provided by the parsers.
-;; (define-decl decl:import (name nodule)
-;;   )
 
 
 ;; Patterns
@@ -320,3 +276,71 @@
                 on-failure)))))])
 
 ;; TODO: pat:and, pat:or, pat:lit, pat:guard
+
+
+;; Declarations
+;; (decl:val Symbol Expr)
+(define-decl decl:val (name expr)
+  [id (gensym name)]
+  [resolveExt (env-single @vars (hash name (hash 'id id)))]
+  [(compile env) `((,id ,(expr-compile expr env)))])
+
+;; (decl:fun Symbol [Symbol] Expr)
+(define-decl decl:fun (name params expr)
+  ;; TODO: functions with branches
+  [id (gensym name)]
+  [resolveExt (env-single @vars (hash name (hash 'id id)))]
+  [(compile env)
+    (let ([inner-env (env-join env resolveExt)])
+      `((,id ,(expr-compile (expr:lambda params expr) inner-env))))])
+
+;; (decl:rec [Decl])
+(define-decl decl:rec (decls)
+  [resolveExt (env-join (map decl-resolveExt decls))]
+  [(compile env)
+    (let ([env (env-join env resolveExt)])
+      (apply append (map (lambda (x) (decl-compile x env)) decls)))])
+
+;; (decl:tag Symbol [Symbol])
+(define-decl decl:tag (name params)
+  [id (gensym (format "ctor:~a" name))]
+  [tag-id (gensym (format "tag:~a" name))]
+  [info (hash 'id id 'tag-id tag-id 'tag-arity (length params))]
+  [resolveExt (env-single @vars (hash name info))]
+  [(compile env)
+    `((,tag-id (new-tag name params))
+      (,id (lambda (,@params) (make-ann ,tag-id ,@params))))])
+
+
+;; Results
+;; (result:decl Decl)
+(define-result result:decl (decl)
+  [resolveExt (decl-resolveExt decl)]
+  [parseExt env-empty])
+
+;; TODO: more powerful imports (qualifying, renaming, etc.)
+;; (result:import Nodule)
+(define-result result:import (nodule)
+  [resolveExt (nodule-resolveExt nodule)]
+  [parseExt (nodule-parseExt nodule)])
+
+;; (define-result result:define-extension-point (name join empty)
+;;   [ext-point (ExtPoint name (gensym name) (Monoid join empty))]
+;;   [resolveExt env-empty]
+;;   [parseExt env-empty])
+
+;; ;; TODO
+;; (define-decl decl:define-extension-point (name oper unit))
+;; (define-decl decl:define-extension (point expr))
+
+;; ;; (decl:module Symbol [Decl])
+;; (define-decl decl:module (name body)
+;;   [id (gensym name)]
+;;   [info (hash 'id id)]
+;;   )
+
+;; ;; (decl:import Symbol Module)
+;; ;; where Module is a hash with (parseExt resolveExt) keys.
+;; ;; the Module info gets provided by the parsers.
+;; (define-decl decl:import (name nodule)
+;;   )
