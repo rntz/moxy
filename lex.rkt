@@ -1,11 +1,60 @@
 #lang racket
 
-(provide tokenize dump)
-
 ;; uses package: parser-tools-lib
 (require racket/stream)
 (require parser-tools/lex)
 (require (prefix-in : parser-tools/lex-sre))
+
+(require "values.rkt")
+
+;; Representing tokens
+(provide
+  tag:TEOF TEOF TEOF?
+  tag:TLPAREN TLPAREN TLPAREN? tag:TRPAREN TRPAREN TRPAREN?
+  tag:TLBRACK TLBRACK TLBRACK? tag:TRBRACK TRBRACK TRBRACK?
+  tag:TLBRACE TLBRACE TLBRACE? tag:TRBRACE TRBRACE TRBRACE?
+  tag:TID TID TID? TID-value
+  tag:TSYM TSYM TSYM? TSYM-value
+  tag:TNUM TNUM TNUM? TNUM-value
+  tag:TSTR TSTR TSTR? TSTR-value)
+
+(define-tag TEOF)
+(define-tag TLPAREN) (define-tag TRPAREN)
+(define-tag TLBRACK) (define-tag TRBRACK)
+(define-tag TLBRACE) (define-tag TRBRACE)
+
+(define-tag TID value)
+(define-tag TSYM value)
+(define-tag TNUM value)
+(define-tag TSTR value)
+
+
+;; The actual lexing
+(provide tokenize dump)
+
+(define (tokenize port)
+  (let ([next (yak-lex port)])
+    (if (TEOF? next) empty-stream
+      (stream-cons next (tokenize port)))))
+
+(define (dump port)
+  (map position-token-token (stream->list (tokenize port))))
+
+(define yak-lex
+  (lexer-src-pos
+    ;; Whitespace & comments are ignored, except newlines
+    [(:+ whitespace) (return-without-pos (yak-lex input-port))]
+    [comment (return-without-pos (yak-lex input-port))]
+    ;; Simple cases
+    [(eof) (return-without-pos TEOF)]
+    ["(" TLPAREN]   [")" TRPAREN]
+    ["[" TLBRACK] ["]" TRBRACK]
+    ["{" TLBRACE]   ["}" TRBRACE]
+    ;; Complex cases
+    [ident (TID lexeme)]
+    [symbol (TSYM lexeme)]
+    [number (TNUM (string->number lexeme))]
+    ["\"" (TSTR (str-lex input-port))]))
 
 (define-lex-abbrevs
   [eol "\n"]
@@ -22,30 +71,6 @@
   [number (:seq (:or "" (char-set "+-"))
                 nat
                 (:or "" (:seq "." nat)))])
-
-(define (tokenize port)
-  (let ([next (yak-lex port)])
-    (if (eq? 'eof next) empty-stream
-      (stream-cons next (tokenize port)))))
-
-(define (dump port)
-  (map position-token-token (stream->list (tokenize port))))
-
-(define yak-lex
-  (lexer-src-pos
-    ;; Whitespace & comments are ignored, except newlines
-    [(:+ whitespace) (return-without-pos (yak-lex input-port))]
-    [comment (return-without-pos (yak-lex input-port))]
-    ;; Simple cases
-    [(eof) (return-without-pos 'eof)]
-    ["(" 'lparen]   [")" 'rparen]
-    ["[" 'lbracket] ["]" 'rbracket]
-    ["{" 'lbrace]   ["}" 'rbrace]
-    ;; Complex cases
-    [ident `(ident ,lexeme)]
-    [symbol `(symbol ,lexeme)]
-    [number `(number ,(string->number lexeme))]
-    ["\"" `(string ,(str-lex input-port))]))
 
 (define (str-lex port)
   (let loop ([strs '()])
