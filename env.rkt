@@ -183,6 +183,8 @@
 
 
 ;; Expressions
+(provide expr:lit expr:var expr:call expr:seq expr:lambda expr:let)
+
 (define-expr expr:lit (value)
   [(compile env) (list 'quote value)])
 
@@ -222,6 +224,7 @@
 
 
 ;; Patterns
+(provide pat:one pat:zero pat:let pat:var pat:ann pat:vector)
 
 (define-pat pat:one () ;; "underscore" pattern, _, succeeds binding nothing
   [resolveExt env-empty]
@@ -279,6 +282,8 @@
 
 
 ;; Declarations
+(provide decl:val decl:fun decl:rec decl:tag)
+
 ;; (decl:val Symbol Expr)
 (define-decl decl:val (name expr)
   [id (gensym name)]
@@ -313,6 +318,8 @@
 
 
 ;; Results
+(provide result:decl result:import)
+
 ;; (result:decl Decl)
 (define-result result:decl (decl)
   [resolveExt (decl-resolveExt decl)]
