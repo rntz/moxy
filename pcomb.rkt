@@ -4,17 +4,18 @@
 (require racket/sequence)
 
 (require "util.rkt")
+(require "values.rkt")
 
 (provide
   string-stream stream-stream
   parse-string
-  return fail fmap1 fmap2 lift1 lift2 seq list* lift
+  return fail pmap1 pmap2 lift1 lift2 seq list* lift
   >>= <* *> <$>
   try ask local
   psum choice pzero peof
   option optional many many1 skip-many skip-many1 str-many str-many1
   sep-by sep-by1 sep-by1 end-by end-by1 sep-end-by sep-end-by1
-  between pfilter
+  between pmap-maybe pfilter
   take expect-seq take-one expect peek-one satisfy any-of none-of
   alpha digit space whitespace opt-whitespace
   )
@@ -149,24 +150,24 @@
 (define ((fail msg) env str hardk softk ok)
   (softk (location str) msg))
 
-(define ((fmap1 f a) env str hardk softk ok)
+(define ((pmap1 f a) env str hardk softk ok)
   (a env str hardk softk
     (lambda (ate res) (ok ate (f res)))))
 
-(define ((fmap2 f a b) env str hardk softk ok)
+(define ((pmap2 f a b) env str hardk softk ok)
   (a env str hardk softk
     (lambda (aate ares)
       (b env str hardk (if aate hardk softk)
         (lambda (bate bres)
           (ok (or aate bate) (f ares bres)))))))
 
-(define (lift1 f) (partial fmap1 f))
-(define (lift2 f) (partial fmap2 f))
-;; ((lift2 f) a b) == (fmap2 f a b)
+(define (lift1 f) (partial pmap1 f))
+(define (lift2 f) (partial pmap2 f))
+;; ((lift2 f) a b) == (pmap2 f a b)
 
 (define (seq ps) (foldr (lift2 cons) (return '()) ps))
 (define list* (nary seq))
-(define (<$> f . ks) (fmap1 (unary f) (seq ks)))
+(define (<$> f . ks) (pmap1 (unary f) (seq ks)))
 (define (lift f) (partial <$> f))
 
 (define >>=
@@ -192,6 +193,7 @@
 
 ;;; Returns the current environment.
 (define ((ask) env str hardk softk ok) (ok #f env))
+(define (asks f) (pmap1 f ask))
 
 ;;; Runs parser p in environment altered by f.
 (define ((local f p) env str hardk softk ok)
@@ -249,14 +251,30 @@
 (define (sep-end-by1 p sep)
   (<$> cons p (option '() (*> sep (eta (sep-end-by p sep))))))
 
+;; Sequence of `p', separated by `sep', optionally begun and/or ended by `sep'.
+;; `p' and `sep' better not be inter-ambiguous.
+(define (begin-sep-end-by p sep) (*> (optional sep) (sep-end-by p sep)))
+(define (begin-sep-end-by1 p sep) (*> (optional sep) (sep-end-by1 p sep)))
+
 (define (between pre post x) (*> pre (<* x post)))
 
-(define ((pfilter parser msgf pred) env str hardk softk ok)
+(define ((pmap-maybe parser func msgf) env str hardk softk ok)
   (let ([loc (location str)])
     (parser env str hardk softk
       (lambda (ate res)
-        (if (pred res) (ok ate res)
-          ((if ate hardk softk) loc (msgf res)))))))
+        (match (func res)
+          [(Just x) (ok ate x)]
+          [None ((if ate hardk softk) loc (msgf res))])))))
+
+(define (pfilter parser pred msgf)
+  (pmap-maybe parser (lambda (x) (if (pred x) (Just x) None)) msgf))
+
+;; (define ((pfilter parser msgf pred) env str hardk softk ok)
+;;   (let ([loc (location str)])
+;;     (parser env str hardk softk
+;;       (lambda (ate res)
+;;         (if (pred res) (ok ate res)
+;;           ((if ate hardk softk) loc (msgf res)))))))
 
 
 ;;; Useful primitives
@@ -269,8 +287,9 @@
 (define (expect-seq seq [test equal?])
   (try
     (pfilter (take (sequence-length seq))
-      (lambda (got) (string-append "expected " (repr seq) ", got" (repr got)))
-      (partial test seq))))
+      (partial test seq)
+      (lambda (got)
+        (string-append "expected " (repr seq) ", got" (repr got))))))
 
 (define (take-one env str hardk softk ok)
   (if (empty? str) (softk (location str) "unexpected EOF")
@@ -278,15 +297,16 @@
 
 (define (expect t [test equal?])
   (try (pfilter take-one
-         (lambda (got) (string-append "expected " (repr t) ", got " (repr got)))
-         (partial test t))))
+         (partial test t)
+         (lambda (got)
+           (string-append "expected " (repr t) ", got " (repr got))))))
 
 (define (peek-one env str hardk softk ok)
   (if (empty? str) (softk (location str) "unexpected EOF")
     (ok #f (peek str))))
 
-(define (satisfy p [msgf (lambda (c) (string-append "unexpected " (repr c)))])
-  (try (pfilter take-one msgf p)))
+(define (satisfy p [msgf (lambda (t) (string-append "unexpected " (repr t)))])
+  (try (pfilter take-one p msgf)))
 
 (define (any-of s [test equal?])
   (satisfy (lambda (c) (sequence-ormap (partial test c) s))
