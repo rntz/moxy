@@ -117,8 +117,7 @@
 ;; just a convenience to make working with them in Racket easier.
 
 (define-syntax (define-pos stx)
-  (with-syntax* ([(_ pos methods ...) stx]
-                 [define-pos_ (format-id stx "define-~a" #'pos)])
+  (with-syntax* ([(_ pos methods ...) stx])
     #`(begin
         #,@(for/list ([method (syntax->list #'(methods ...))])
              (syntax-parse method
@@ -129,13 +128,10 @@
                        ((hash-get 'name self) params ...)))]
                [name:id
                  #`(define #,(format-id stx "~a-~a" #'pos #'name)
-                     (lambda (self) (hash-get 'name self)))]))
-        (define-syntax-rule
-          (define-pos_ name (field (... ...)) method (... ...))
-          (define-form pos name (field (... ...)) method (... ...))))))
+                     (lambda (self) (hash-get 'name self)))])))))
 
 (define-syntax (define-form stx)
-  (with-syntax* ([(_ pos form (field ...) method ...) stx]
+  (with-syntax* ([(_ form (field ...) method ...) stx]
                  )
     #`(define (form field ...)
         (hash-put 'type 'form
@@ -189,23 +185,23 @@
 ;; Expressions
 (provide expr:lit expr:var expr:call expr:seq expr:lambda expr:let)
 
-(define-expr expr:lit (value)
+(define-form expr:lit (value)
   [(compile env) (list 'quote value)])
 
-(define-expr expr:var (name)
+(define-form expr:var (name)
   [(compile env)
     ;; TODO: better error handling
     (hash-get 'id
       (hash-get name (env-get @vars env)
         (lambda () (error 'expr:var "unbound variable ~v" name))))])
 
-(define-expr expr:call (func args)
+(define-form expr:call (func args)
   [(compile env) (map (lambda (x) (expr-compile x env)) (cons func args))])
 
-(define-expr expr:seq (a b)
+(define-form expr:seq (a b)
   [(compile env) `(begin ,(expr-compile a env) ,(expr-compile b env))])
 
-(define-expr expr:lambda (params expr)
+(define-form expr:lambda (params expr)
   ;; TODO: case-lambdas? patterns as parameters?
   ;; TODO: check for duplicate names in params
   [(compile env)
@@ -217,7 +213,7 @@
       `(lambda (,@ids)
          ,(expr-compile expr inner-env)))])
 
-(define-expr expr:let (decls exp)
+(define-form expr:let (decls exp)
   [(compile env)
     (let loop ([decls decls] [env env])
       (match decls
@@ -230,29 +226,29 @@
 ;; Patterns
 (provide pat:one pat:zero pat:let pat:var pat:ann pat:vector)
 
-(define-pat pat:one () ;; "underscore" pattern, _, succeeds binding nothing
+(define-form pat:one () ;; "underscore" pattern, _, succeeds binding nothing
   [resolveExt env-empty]
   [(compile env subject on-success on-failure) on-success])
 
-(define-pat pat:zero (names) ;; pattern that always fails, binding names
+(define-form pat:zero (names) ;; pattern that always fails, binding names
   [ids (map gensym names)]
   [resolveExt (env-single @vars (hash-from-keys-values names
                                   (map (lambda (x) (hash 'id x)) ids)))]
   [(compile env subject on-success on-failure) on-failure])
 
-(define-pat pat:let (name expr) ;; always binds name to expr
+(define-form pat:let (name expr) ;; always binds name to expr
   [id (gensym name)]
   [resolveExt (env-single @vars (hash name (hash 'id id)))]
   [(compile env subject on-success on-failure)
     `(let ((,id ,(expr-compile expr env))) ,on-success)])
 
-(define-pat pat:var (name)
+(define-form pat:var (name)
   [id (gensym name)]
   [resolveExt (env-single @vars (hash name (hash 'id id)))]
   [(compile env subject on-success on-failure)
     `(let ([,id ,subject]) ,on-success)])
 
-(define-pat pat:ann (name args)
+(define-form pat:ann (name args)
   [args-pat (pat:vector args)]
   [resolveExt (pat-resolveExt args-pat)]
   [(compile env subject on-success on-failure)
@@ -270,7 +266,7 @@
            ,(pat-compile args-pat env tmp on-success on-failure))
          ,on-failure))])
 
-(define-pat pat:vector (elems)
+(define-form pat:vector (elems)
   [resolveExt (env-join* (map pat-resolveExt elems))]
   [(compile env subject on-success on-failure)
     (let loop ([i 0] [env env])
@@ -289,13 +285,13 @@
 (provide decl:val decl:fun decl:rec decl:tag)
 
 ;; (decl:val Symbol Expr)
-(define-decl decl:val (name expr)
+(define-form decl:val (name expr)
   [id (gensym name)]
   [resolveExt (env-single @vars (hash name (hash 'id id)))]
   [(compile env) `((,id ,(expr-compile expr env)))])
 
 ;; (decl:fun Symbol [Symbol] Expr)
-(define-decl decl:fun (name params expr)
+(define-form decl:fun (name params expr)
   ;; TODO: functions with branches
   [id (gensym name)]
   [resolveExt (env-single @vars (hash name (hash 'id id)))]
@@ -304,14 +300,14 @@
       `((,id ,(expr-compile (expr:lambda params expr) inner-env))))])
 
 ;; (decl:rec [Decl])
-(define-decl decl:rec (decls)
+(define-form decl:rec (decls)
   [resolveExt (env-join (map decl-resolveExt decls))]
   [(compile env)
     (let ([env (env-join env resolveExt)])
       (apply append (map (lambda (x) (decl-compile x env)) decls)))])
 
 ;; (decl:tag Symbol [Symbol])
-(define-decl decl:tag (name params)
+(define-form decl:tag (name params)
   [id (gensym (format "ctor:~a" name))]
   [tag-id (gensym (format "tag:~a" name))]
   [info (hash 'id id 'tag-id tag-id 'tag-arity (length params))]
@@ -325,17 +321,17 @@
 (provide result:decl result:import)
 
 ;; (result:decl Decl)
-(define-result result:decl (decl)
+(define-form result:decl (decl)
   [resolveExt (decl-resolveExt decl)]
   [parseExt env-empty])
 
 ;; TODO: more powerful imports (qualifying, renaming, etc.)
 ;; (result:import Nodule)
-(define-result result:import (nodule)
+(define-form result:import (nodule)
   [resolveExt (nodule-resolveExt nodule)]
   [parseExt (nodule-parseExt nodule)])
 
-;; (define-result result:define-extension-point (name join empty)
+;; (define-form result:define-extension-point (name join empty)
 ;;   [ext-point (ExtPoint name (gensym name) (Monoid join empty))]
 ;;   [resolveExt env-empty]
 ;;   [parseExt env-empty])
