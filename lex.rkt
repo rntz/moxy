@@ -30,15 +30,18 @@
 
 
 ;; The actual lexing
-(provide tokenize dump)
+(provide tokenize tokenize-with-position dump)
 
 (define (tokenize port)
+  (stream-map position-token-token (tokenize-with-position port)))
+
+(define (tokenize-with-position port)
   (let ([next (yak-lex port)])
     (if (TEOF? next) empty-stream
-      (stream-cons next (tokenize port)))))
+      (stream-cons next (tokenize-with-position port)))))
 
 (define (dump port)
-  (map position-token-token (stream->list (tokenize port))))
+  (stream->list (tokenize port)))
 
 (define yak-lex
   (lexer-src-pos
