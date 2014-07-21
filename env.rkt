@@ -65,7 +65,8 @@
 (provide
   @decls @decls-join @decls-empty
   @exprs @exprs-join @exprs-empty
-  @pats @pats-join @pats-empty)
+  @pats @pats-join @pats-empty
+  @infix-exprs @infix-exprs-join @infix-exprs-empty)
 
 ;; Convention: extension point names begin with "@"
 ;; -- ParseEnv extension points --
@@ -76,6 +77,9 @@
 (define-ExtPoint @exprs hash-union (hash))
 ;; Maps tokens to (Parser pat)s
 (define-ExtPoint @pats hash-union (hash))
+
+;; Maps tokens to InfixExprs (TODO: what is an InfixExpr?)
+(define-ExtPoint @infix-exprs hash-union (hash))
 
 
 ;; -- ResolveEnv extension points --
