@@ -15,8 +15,9 @@
   psum choice pzero peof
   option optional many many1 skip-many skip-many1 str-many str-many1
   sep-by sep-by1 sep-by1 end-by end-by1 sep-end-by sep-end-by1
+  begin-sep-end-by begin-sep-end-by1
   between pmap-maybe pfilter
-  take expect-seq take-one expect peek-one satisfy any-of none-of
+  take expect-seq take-one try-one-maybe expect peek-one satisfy any-of none-of
   alpha digit space whitespace opt-whitespace
   )
 
@@ -234,6 +235,9 @@
 (define (option x p) (choice p (return x)))
 (define (optional p) (option (void) p))
 
+;;; Q: won't this overflow stack during parsing of long list?
+;;; A: no, it'll just fill up the heap with continuation closures.
+;;; that's the magic of CPS!
 (define (many p) (option '() (many1 p)))
 (define (many1 p) (<$> cons p (eta (many p))))
 (define (skip-many p) (optional (skip-many1 p)))
@@ -305,8 +309,11 @@
   (if (empty? str) (softk (location str) "unexpected EOF")
     (ok #f (peek str))))
 
-(define (satisfy p [msgf (lambda (t) (string-append "unexpected " (repr t)))])
+(define (satisfy p [msgf (lambda (t) (format "unexpected ~v" t))])
   (try (pfilter take-one p msgf)))
+
+(define (try-one-maybe f [msgf (lambda (t) (format "unexpected ~v" t))])
+  (try (pmap-maybe take-one f msgf)))
 
 (define (any-of s [test equal?])
   (satisfy (lambda (c) (sequence-ormap (partial test c) s))
