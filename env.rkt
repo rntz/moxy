@@ -61,85 +61,44 @@
     (lambda () (ExtPoint-empty ext-point))))
 
 
-;; Built-in extension points
-(provide
-  @decls @decls-join @decls-empty
-  @exprs @exprs-join @exprs-empty
-  @pats @pats-join @pats-empty
-  @infix-exprs @infix-exprs-join @infix-exprs-empty)
+;; Tools for defining interfaces on hashes and convenient ways to construct
+;; hashes. We use hashes to represent records (and thus, more or less, OO-style
+;; objects) in our language. Methods are represented by keys mapped to
+;; functions; properties by keys mapped to values.
 
-;; Convention: extension point names begin with "@"
-;; -- ParseEnv extension points --
+(provide define-accessors define-accessor define-form make-record)
 
-;; Maps tokens to (Parser decl)s (see parts of speech, below)
-(define-ExtPoint @decls hash-union (hash))
-;; Maps tokens to (Parser expr)s
-(define-ExtPoint @exprs hash-union (hash))
-;; Maps tokens to (Parser pat)s
-(define-ExtPoint @pats hash-union (hash))
+(define-syntax (define-accessors stx)
+  (syntax-parse stx
+    [(_ prefix:id accessor ...)
+      (let ([mk-name (lambda (name) (format-id stx "~a-~a" #'prefix name))])
+        #`(begin
+            #,@(for/list [(axor (syntax->list #'(accessor ...)))]
+                 (syntax-parse axor
+                   [(name:id param:id ...)
+                     #`(define-accessor #,(mk-name #'name) param ...)
+                     #`(define (#,(mk-name #'name) self param ...)
+                         ((hash-get 'name self) param ...))]
+                   [name:id
+                     #`(define-accessor #,(mk-name #'name))]))))]))
 
-;; Maps tokens to InfixExprs (TODO: what is an InfixExpr?)
-(define-ExtPoint @infix-exprs hash-union (hash))
-
-
-;; -- ResolveEnv extension points --
-
-;; TODO: should ResolveEnv really be represented as an env? or is it too
-;; special-purpose? What legitimate extensions to ResolveEnv are possible?
-
-(provide
-  @vars @vars-join @vars-empty)
-
-;; maps var names to hashes of info about them.
-;; hash keys:
-;; - type: one of '(var ctor)
-;; - id: the IR identifier for the value of this variable.
-;;
-;; Hash keys for ctors:
-;; - tag-id: The IR id for the tag for this ctor.
-;; - tag-arity: Arity of ctor.
-(define-ExtPoint @vars hash-union (hash))
-
-(define (@vars-var name id) (hash name (hash 'type 'var 'id id)))
-(define (@vars-ctor name id tag-id tag-arity)
-  (hash name (hash 'type 'ctor 'id id 'tag-id tag-id 'tag-arity tag-arity)))
-
-
-;; "Parts of speech": interfaces for various parts of the language AST.
-;; E.g. expressions, declarations, patterns
-;;
-;; Parts of speech are defined by the interface they present so that people can
-;; add new forms with new behavior. E.g. an Expr is anything that has a 'compile
-;; "method" that takes a ResolveEnv and produces an IR expression.
-;;
-;; Values of parts of speech (actual expr, decl, pattern nodes in the AST) are
-;; represented by hashes mapping "methods" to their values. So the following is
-;; just a convenience to make working with them in Racket easier.
-
-(define-syntax (define-pos stx)
-  (with-syntax* ([(_ pos methods ...) stx])
-    #`(begin
-        #,@(for/list ([method (syntax->list #'(methods ...))])
-             (syntax-parse method
-               [(name:id params:id ...)
-                 #`(define #,(format-id stx "~a-~a" #'pos #'name)
-                     (lambda (self params ...)
-                       ;; TODO: error message on hash-get failure?
-                       ((hash-get 'name self) params ...)))]
-               [name:id
-                 #`(define #,(format-id stx "~a-~a" #'pos #'name)
-                     (lambda (self) (hash-get 'name self)))])))))
+(define-syntax (define-accessor stx)
+  (syntax-parse stx
+    [(_ name:id)
+      #`(define (name self) (hash-get 'name self))]
+    [(_ name:id param:id ...)
+      #`(define (name self param ...) ((hash-get 'name self) param ...))]))
 
 (define-syntax (define-form stx)
   (with-syntax* ([(_ form (field ...) method ...) stx]
                  )
     #`(define (form field ...)
-        (hash-put 'type 'form
-          (magical-hash
-            [field field] ...
-            method ...)))))
+        (make-record
+          [type 'form]
+          [field field] ...
+          method ...))))
 
-(define-syntax (magical-hash stx)
+(define-syntax (make-record stx)
   (let* ([bindings (cdr (syntax->list stx))]
          [names (map (lambda (b) (syntax-parse b
                               [(name:id value) #'name]
@@ -156,15 +115,91 @@
             `((name . ,name) ...))))))
 
 
-;;; Builtin parts of speech and forms
-(define-pos expr
+;; -- Built-in ParseEnv extension points --
+;; Convention: extension point names begin with "@"
+
+(provide
+  @decls @decls-join @decls-empty @decl-parser
+  @exprs @exprs-join @exprs-empty @expr-parser
+  @infixes @infixes-join @infixes-empty @infix-precedence @infix-parser
+  @pats @pats-join @pats-empty @pat-parser)
+
+;; Maps tokens to "@decl"s.
+(define-ExtPoint @decls hash-union (hash))
+(define-accessors @decl
+  parser ;; Parser Decl (see "parts of speech" below for what Decl is)
+  )
+
+;; Maps tokens to (@prefix-expr)s
+(define-ExtPoint @exprs hash-union (hash))
+(define-accessors @expr
+  parser     ;; Parser Expr
+  )
+
+;; Maps tokens to (@infix)es
+(define-ExtPoint @infixes hash-union (hash))
+(define-accessors @infix
+  precedence ;; Int
+  parser)    ;; Int, Expr -> Parser Expr
+
+;; Maps tokens to (@pat)s
+(define-ExtPoint @pats hash-union (hash))
+(define-accessors @pat
+  parser) ;; Parser Pat
+
+
+;; -- Built-in ResolveEnv extension points --
+
+;; TODO: should ResolveEnv really be represented as an env? or is it too
+;; special-purpose? What legitimate extensions to ResolveEnv are possible?
+
+(provide
+  @vars @vars-join @vars-empty
+  @var-style @var-id @var-tag-id @var-tag-arity
+  )
+
+;; maps var names to hashes of info about them.
+;; hash keys:
+;; - style: one of '(var ctor)
+;; - id: the IR identifier for the value of this variable.
+;;
+;; Hash keys for ctors:
+;; - tag-id: The IR id for the tag for this ctor.
+;; - tag-arity: Arity of ctor.
+(define-ExtPoint @vars hash-union (hash))
+
+(define (@vars-var name id) (hash name (hash 'type 'var 'id id)))
+(define (@vars-ctor name id tag-id tag-arity)
+  (hash name (hash 'type 'ctor 'id id 'tag-id tag-id 'tag-arity tag-arity)))
+
+(define-accessors @var
+  style id tag-id tag-arity)
+
+
+;; Builtin parts of speech.
+;;
+;; "Parts of speech" are interfaces for various parts of the language AST; e.g.
+;; expressions, declarations, patterns.
+;;
+;; Parts of speech are defined by the interface they present so that people can
+;; add new forms with new behavior. E.g. an Expr is anything that has a 'compile
+;; "method" that takes a ResolveEnv and produces an IR expression.
+
+(provide
+  expr-compile
+  decl-resolveExt decl-compile
+  pat-resolveExt pat-compile
+  result-resolveExt result-parseExt
+  nodule-name nodule-resolveExt nodule-parseExt)
+
+(define-accessors expr
   (compile renv))                       ; ResolveEnv -> IR
 
-(define-pos decl
+(define-accessors decl
   resolveExt                            ; ResolveEnv
   (compile renv))                       ; ResolveEnv -> [(Id, IR)]
 
-(define-pos pat
+(define-accessors pat
   resolveExt
   ;; Not sure of the best way to present this interface.
   ;; ResolveEnv, IR, IR, IR -> IR
@@ -172,23 +207,25 @@
 
 ;; The "result" of parsing a top-level declaration. Not exactly a part of
 ;; speech, but acts like one.
-(define-pos result
+(define-accessors result
   resolveExt
   parseExt)
 
-(define-pos nodule ;; can't use "module", it means something in Racket
+(define-accessors nodule ;; can't use "module", it means something in Racket
+  name
   resolveExt
-  parseExt
-  name)
+  parseExt)
 
 
-;; Expressions
+;; Builtin expressions forms
 (provide expr:lit expr:var expr:call expr:seq expr:lambda expr:let)
 
 (define-form expr:lit (value)
+  [sexp value]
   [(compile env) (list 'quote value)])
 
 (define-form expr:var (name)
+  [sexp `(var ,name)]
   [(compile env)
     ;; TODO: better error handling
     (hash-get 'id
@@ -223,7 +260,7 @@
              ,(loop ds (env-join env (decl-resolveExt d))))]))])
 
 
-;; Patterns
+;; Builtin pattern forms
 (provide pat:one pat:zero pat:let pat:var pat:ann pat:vector)
 
 (define-form pat:one () ;; "underscore" pattern, _, succeeds binding nothing
@@ -281,7 +318,7 @@
 ;; TODO: pat:and, pat:or, pat:lit, pat:guard
 
 
-;; Declarations
+;; Builtin declaration forms
 (provide decl:val decl:fun decl:rec decl:tag)
 
 ;; (decl:val Symbol Expr)
@@ -317,7 +354,7 @@
       (,id (lambda (,@params) (make-ann ,tag-id ,@params))))])
 
 
-;; Results
+;; Builtin result forms
 (provide result:decl result:import)
 
 ;; (result:decl Decl)
