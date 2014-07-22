@@ -143,7 +143,12 @@
 (define-ExtPoint @infixes hash-union (hash))
 (define-accessors @infix
   precedence               ;; Int
-  (parser prec left-expr)) ;; Int, Expr -> Parser Expr
+  ;; parser : Expr -> Parser Expr
+  ;; takes the "left argument" to the infix operator.
+  ;; needs to parse the right argument(s) itself.
+  ;; so this really allows any non-prefix operator, not just infix
+  ;; (postfix or ternary operators, for example)
+  (parser left-expr))
 
 ;; Maps tokens to (@pat)s
 (define-ExtPoint @pats hash-union (hash))
