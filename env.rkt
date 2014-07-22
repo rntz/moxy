@@ -142,8 +142,8 @@
 ;; Maps tokens to (@infix)es
 (define-ExtPoint @infixes hash-union (hash))
 (define-accessors @infix
-  precedence ;; Int
-  parser)    ;; Int, Expr -> Parser Expr
+  precedence               ;; Int
+  (parser prec left-expr)) ;; Int, Expr -> Parser Expr
 
 ;; Maps tokens to (@pat)s
 (define-ExtPoint @pats hash-union (hash))
