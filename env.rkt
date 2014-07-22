@@ -76,18 +76,21 @@
             #,@(for/list [(axor (syntax->list #'(accessor ...)))]
                  (syntax-parse axor
                    [(name:id param:id ...)
-                     #`(define-accessor #,(mk-name #'name) param ...)
-                     #`(define (#,(mk-name #'name) self param ...)
-                         ((hash-get 'name self) param ...))]
+                     #`(define-accessor #,(mk-name #'name) name (param ...))]
                    [name:id
-                     #`(define-accessor #,(mk-name #'name))]))))]))
+                     #`(define-accessor #,(mk-name #'name) name)]))))]))
 
 (define-syntax (define-accessor stx)
   (syntax-parse stx
-    [(_ name:id)
-      #`(define (name self) (hash-get 'name self))]
-    [(_ name:id param:id ...)
-      #`(define (name self param ...) ((hash-get 'name self) param ...))]))
+    [(_ axor-name:id key:id)
+      #`(define (axor-name self [or-else (lambda () (error 'axor-name
+                                                 "absent field: ~v" 'key))])
+          (hash-get 'key self or-else))]
+    [(_ axor-name:id key:id (param:id ...))
+      #`(define (axor-name self param ...)
+          ((hash-get 'key self (lambda ()
+                                 (error 'axor-name "absent method: ~v" 'key)))
+            param ...))]))
 
 (define-syntax (define-form stx)
   (with-syntax* ([(_ form (field ...) method ...) stx]
@@ -168,9 +171,12 @@
 ;; - tag-arity: Arity of ctor.
 (define-ExtPoint @vars hash-union (hash))
 
-(define (@vars-var name id) (hash name (hash 'type 'var 'id id)))
+(define-form @var:var (name id) [style 'var])
+(define-form @var:ctor (name id tag-id tag-arity) [style 'ctor])
+
+(define (@vars-var name id) (hash name (@var:var name id)))
 (define (@vars-ctor name id tag-id tag-arity)
-  (hash name (hash 'type 'ctor 'id id 'tag-id tag-id 'tag-arity tag-arity)))
+  (hash name (@var:ctor name id tag-id tag-arity)))
 
 (define-accessors @var
   style id tag-id tag-arity)
@@ -245,7 +251,7 @@
     (let* ([ids (map gensym params)]
            [vars (hash-from-keys-values
                    params
-                   (map (lambda (id) (hash 'id id)) ids))]
+                   (map @var:var params ids))]
            [inner-env (env-join env (env-single @vars vars))])
       `(lambda (,@ids)
          ,(expr-compile expr inner-env)))])
@@ -270,18 +276,18 @@
 (define-form pat:zero (names) ;; pattern that always fails, binding names
   [ids (map gensym names)]
   [resolveExt (env-single @vars (hash-from-keys-values names
-                                  (map (lambda (x) (hash 'id x)) ids)))]
+                                  (map @var:var names ids)))]
   [(compile env subject on-success on-failure) on-failure])
 
 (define-form pat:let (name expr) ;; always binds name to expr
   [id (gensym name)]
-  [resolveExt (env-single @vars (hash name (hash 'id id)))]
+  [resolveExt (@vars-var name id)]
   [(compile env subject on-success on-failure)
     `(let ((,id ,(expr-compile expr env))) ,on-success)])
 
 (define-form pat:var (name)
   [id (gensym name)]
-  [resolveExt (env-single @vars (hash name (hash 'id id)))]
+  [resolveExt (@vars-var name id)]
   [(compile env subject on-success on-failure)
     `(let ([,id ,subject]) ,on-success)])
 
@@ -292,7 +298,7 @@
     ;; TODO: useful error handling.
     (let* ([info (hash-get name (env-get @vars env)
                    (lambda () (error 'pat:ann "unbound ctor ~v" name)))]
-           [ctor-id (hash-get 'id info)]
+           [ctor-id (@var-id info)]
            [tag-id (hash-get 'tag-id info
                      (lambda () (error 'pat:ann "~v is not a ctor" name)))]
            [tag-arity (hash-get 'tag-arity info)]
