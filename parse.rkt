@@ -11,7 +11,8 @@
 
 (provide parse parse-all
   builtin-parse-env
-  p-expr p-decl p-decls ;; TODO: p-toplevel-decl
+  p-expr p-decl p-decls
+  parse-eval parse-eval-one
   )
 
 (define (parse parser env what)
@@ -107,7 +108,7 @@
           ;; Look for an infix operator associated with the token `t' whose
           ;; precedence is at least `prec' (i.e. as tight or tighter-binding as
           ;; what we're currently looking for).
-          (lambda (t) (filter-maybe
+          (lambda (t) (maybe-filter
                    (hash-lookup t (env-get @infixes parse-env))
                    (lambda (x) (<= prec (@infix-precedence x)))))))
       (lambda (ext)
@@ -137,7 +138,64 @@
 ;; TODO: p-toplevel-decl p-toplevel-decls
 
 
+;; This is it, folks. This is what it's all for.
+;;
+;; It's also weird (to me). It threads the evaluation through the parser rather
+;; than repeatedly parsing and then evaluating.
+(define (parse-eval resolve-env)
+  ;; (printf "parse-eval: ~v\n" resolve-env) ;FIXME
+  (let loop ([resolve-env resolve-env]
+             [penv env-empty]
+             [renv env-empty])
+    (choice
+      (>>= (parse-eval-one resolve-env)
+        (lambda (result)
+          ;; (printf "parse-eval: got result: ~v\n" result) ;; FIXME
+          (let ([result-penv (result-parseExt result)]
+                [result-renv (result-resolveExt result)])
+            (local
+              (lambda (parse-env) (env-join parse-env result-penv))
+              (loop (env-join resolve-env result-renv)
+                    (env-join penv result-penv)
+                    (env-join renv result-renv))))))
+      (eta (return (record [resolveExt renv] [parseExt penv]))))))
+
+(define (parse-eval-one resolve-env)
+  ;; (printf "parse-eval-one: ~v\n" resolve-env) ;FIXME
+  (>>= ask
+    (lambda (parse-env)
+      (try-one-maybe
+        (lambda (t)
+          (match (hash-lookup t (env-get @tops parse-env))
+            [None (maybe-map
+                    (hash-lookup t (env-get @decls parse-env))
+                    @top:@decl)]
+            [x x]))))
+    (lambda (ext)
+      (@top-parse-eval ext resolve-env))))
+
+
 ;; -- Built-in parser parts --
+;; - @tops -
+(define ((parse-eval-decl decl-parser) resolve-env)
+  (>>= decl-parser
+    (lambda (decl)
+      (define code
+        `(begin
+           ,@(for/list ([id-code (decl-compile decl resolve-env)])
+               `(define ,@id-code))))
+      (printf "-- EVALING: ~v --\n" code) ;FIXME
+      (eval code)
+      (return (result:decl decl)))))
+(define (@top:@decl decl)
+  (record [parse-eval (parse-eval-decl (@decl-parser decl))]))
+
+;; - @decls -
+(define p-val-decl
+  ;; TODO: patterns!
+  (<$> decl:val p-id (*> (keysym "=") p-expr)))
+(define @decl:val (record [parser p-val-decl]))
+
 ;; - @exprs -
 (define p-param p-id) ;; TODO: pattern parameters!
 (define p-params (begin-sep-end-by p-param comma))
@@ -165,12 +223,6 @@
 (define (p-call-infix func-expr)
   (<$> (partial expr:call func-expr) (<* p-arguments rparen)))
 (define @infix:call (record [precedence 11] [parser p-call-infix]))
-
-;; - @decls -
-(define p-val-decl
-  ;; TODO: patterns!
-  (<$> decl:val p-id (*> (keysym "=") p-expr)))
-(define @decl:val (record [parser p-val-decl]))
 
 
 ;; -- The default/built-in parser extensions --

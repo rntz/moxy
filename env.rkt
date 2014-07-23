@@ -122,16 +122,11 @@
 ;; Convention: extension point names begin with "@"
 
 (provide
-  @decls @decls-join @decls-empty @decl-parser
   @exprs @exprs-join @exprs-empty @expr-parser
   @infixes @infixes-join @infixes-empty @infix-precedence @infix-parser
-  @pats @pats-join @pats-empty @pat-parser)
-
-;; Maps tokens to (@decl)s.
-(define-ExtPoint @decls hash-union (hash))
-(define-accessors @decl
-  parser ;; Parser Decl (see "parts of speech" below for what Decl is)
-  )
+  @pats @pats-join @pats-empty @pat-parser
+  @decls @decls-join @decls-empty @decl-parser
+  @tops @tops-join @tops-empty @top-parse-eval)
 
 ;; Maps tokens to (@expr)s
 (define-ExtPoint @exprs hash-union (hash))
@@ -154,6 +149,19 @@
 (define-ExtPoint @pats hash-union (hash))
 (define-accessors @pat
   parser) ;; Parser Pat
+
+;; Maps tokens to (@decl)s.
+(define-ExtPoint @decls hash-union (hash))
+(define-accessors @decl
+  parser ;; Parser Decl (see "parts of speech" below for what Decl is)
+  )
+
+;; Maps tokens to (@top)s.
+(define-ExtPoint @tops hash-union (hash))
+(define-accessors @top
+  ;; ResolveEnv -> Parser Result
+  ;; TODO: Do we need to pass in some kind of "state" for the evaluator?
+  (parse-eval resolve-env))
 
 
 ;; -- Built-in ResolveEnv extension points --
@@ -205,19 +213,19 @@
 
 (define-accessors expr
   (sexp)
-  (compile renv))                       ; ResolveEnv -> IR
+  (compile resolve-env))                ; ResolveEnv -> IR
 
 (define-accessors decl
   (sexp)
   resolveExt                            ; ResolveEnv
-  (compile renv))                       ; ResolveEnv -> [(Id, IR)]
+  (compile resolve-env))                ; ResolveEnv -> [(Id, IR)]
 
 (define-accessors pat
   (sexp)
   resolveExt
   ;; Not sure of the best way to present this interface.
   ;; ResolveEnv, IR, IR, IR -> IR
-  (compile renv subject on-success on-failure))
+  (compile resolve-env subject on-success on-failure))
 
 ;; The "result" of parsing a top-level declaration. Not exactly a part of
 ;; speech, but acts like one.
@@ -386,7 +394,11 @@
 
 
 ;; Builtin result forms
-(provide result:decl result:import)
+(provide result:empty result:decl result:import)
+
+(define-form result:empty ()
+  [resolveExt env-empty]
+  [parseExt env-empty])
 
 ;; (result:decl Decl)
 (define-form result:decl (decl)

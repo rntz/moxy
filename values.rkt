@@ -158,7 +158,7 @@
 (provide
   tag:Just Just Just? Just-value
   tag:None None None?
-  maybe? maybe from-maybe filter-maybe
+  maybe? maybe from-maybe maybe-bind maybe-map maybe-filter
   tag:Monoid Monoid Monoid? Monoid-join Monoid-empty
   tag:ExtPoint ExtPoint ExtPoint? ExtPoint-name ExtPoint-uid ExtPoint-monoid
   ExtPoint-join ExtPoint-empty)
@@ -174,8 +174,8 @@
 (define (from-maybe v default) (maybe v default identity))
 
 (define (maybe-bind v f) (maybe v None f))
-
-(define (filter-maybe v ok?)
+(define (maybe-map v f) (maybe-bind v (lambda (x) (Just (f x)))))
+(define (maybe-filter v ok?)
   (match v
     [(Just x) (if (ok? x) v None)]
     [None v]))
