@@ -350,12 +350,14 @@
 
 ;; (decl:val Symbol Expr)
 (define-form decl:val (name expr)
+  [(sexp) `(val ,name ,(expr-sexp expr))]
   [id (gensym name)]
   [resolveExt (env-single @vars (@vars-var name id))]
   [(compile env) `((,id ,(expr-compile expr env)))])
 
 ;; (decl:fun Symbol [Symbol] Expr)
 (define-form decl:fun (name params expr)
+  [(sexp) `(fun ,name ,params ,(expr-sexp expr))]
   ;; TODO: functions with branches
   [id (gensym name)]
   [resolveExt (env-single @vars (@vars-var name id))]
@@ -365,6 +367,7 @@
 
 ;; (decl:rec [Decl])
 (define-form decl:rec (decls)
+  [(sexp) `(rec ,@(map decl-sexp decls))]
   [resolveExt (env-join (map decl-resolveExt decls))]
   [(compile env)
     (let ([env (env-join env resolveExt)])
@@ -372,6 +375,7 @@
 
 ;; (decl:tag Symbol [Symbol])
 (define-form decl:tag (name params)
+  [(sexp) `(tag ,name ,params)]
   [id (gensym (format "ctor:~a" name))]
   [tag-id (gensym (format "tag:~a" name))]
   [info (@var:ctor name id tag-id (length params))]

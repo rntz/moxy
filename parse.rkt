@@ -9,7 +9,11 @@
 (require "values.rkt")
 (require "env.rkt")
 
-;;; TODO: provide
+(provide parse parse-all
+  builtin-parse-env
+  p-expr p-decl p-decls ;; TODO: p-toplevel-decl
+  )
+
 (define (parse parser env what)
   (parser
     env
@@ -25,7 +29,8 @@
 (define (parse-all parser env what)
   (parse (<* parser peof) env what))
 
-;; Utility wrapper
+
+;; Utility thingies
 (define (keyword id) (expect (TID id)))
 (define (keysym id) (expect (TSYM id)))
 
@@ -118,6 +123,17 @@
 
 (define p-expr (p-expr-at 0))
 
+(define p-decl
+  (>>= ask
+    (lambda (parse-env)
+      (try-one-maybe
+        (lambda (t) (hash-lookup t (env-get @decls parse-env)))))
+    (lambda (ext)
+      ;; Pass off to its parser
+      (@decl-parser ext))))
+
+(define p-decls (many p-decl))
+
 ;; TODO: p-toplevel-decl p-toplevel-decls
 
 
@@ -135,6 +151,10 @@
                     (*> (keyword "then") p-expr)
                     (*> (keyword "else") p-expr)))
 (define @expr:if (record [parser p-if-expr]))
+
+(define p-let-expr (<$> expr:let (<* p-decls (keyword "in"))
+                                 (<* p-expr p-optional-end)))
+(define @expr:let (record [parser p-let-expr]))
 
 ;; - @infixes -
 (define (p-seq-infix first-expr)
@@ -160,7 +180,10 @@
   (hash
     (TSYM "\\") @expr:lambda
     TLPAREN     @expr:parens
-    (TID "if")  @expr:if))
+    (TID "if")  @expr:if
+    ;; TODO: let
+    (TID "let") @expr:let
+    ))
 
 (define builtin-@infixes
   (hash
