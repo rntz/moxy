@@ -8,7 +8,6 @@
 
 (provide
   string-stream stream-stream
-  parse-string
   return fail pmap1 pmap2 lift1 lift2 seq list* lift
   >>= <* *> <$>
   try ask local
@@ -136,15 +135,6 @@
 ;;;
 ;;; This is basically a reimplementation of the Haskell Parsec library.
 
-(define (parse-string parser string)
-  (let ([str (string-stream string)])
-    (values
-      (parser (void) str
-        (lambda (loc msg) `(hard ,loc ,msg))
-        (lambda (loc msg) `(soft ,loc ,msg))
-        (lambda (_ r) `(ok ,r)))
-      (send str read-all))))
-
 ;;; Basic monadic operations
 (define ((return x) env str hardk softk ok) (ok #f x))
 
@@ -193,7 +183,7 @@
   (p env str softk softk ok))
 
 ;;; Returns the current environment.
-(define ((ask) env str hardk softk ok) (ok #f env))
+(define (ask env str hardk softk ok) (ok #f env))
 (define (asks f) (pmap1 f ask))
 
 ;;; Runs parser p in environment altered by f.

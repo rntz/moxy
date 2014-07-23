@@ -66,7 +66,7 @@
 ;; objects) in our language. Methods are represented by keys mapped to
 ;; functions; properties by keys mapped to values.
 
-(provide define-accessors define-accessor define-form make-record)
+(provide define-accessors define-accessor define-form record)
 
 (define-syntax (define-accessors stx)
   (syntax-parse stx
@@ -96,12 +96,12 @@
   (with-syntax* ([(_ form (field ...) method ...) stx]
                  )
     #`(define (form field ...)
-        (make-record
+        (record
           [type 'form]
           [field field] ...
           method ...))))
 
-(define-syntax (make-record stx)
+(define-syntax (record stx)
   (let* ([bindings (cdr (syntax->list stx))]
          [names (map (lambda (b) (syntax-parse b
                               [(name:id value) #'name]
@@ -127,13 +127,13 @@
   @infixes @infixes-join @infixes-empty @infix-precedence @infix-parser
   @pats @pats-join @pats-empty @pat-parser)
 
-;; Maps tokens to "@decl"s.
+;; Maps tokens to (@decl)s.
 (define-ExtPoint @decls hash-union (hash))
 (define-accessors @decl
   parser ;; Parser Decl (see "parts of speech" below for what Decl is)
   )
 
-;; Maps tokens to (@prefix-expr)s
+;; Maps tokens to (@expr)s
 (define-ExtPoint @exprs hash-union (hash))
 (define-accessors @expr
   parser     ;; Parser Expr
@@ -197,20 +197,23 @@
 ;; "method" that takes a ResolveEnv and produces an IR expression.
 
 (provide
-  expr-compile
-  decl-resolveExt decl-compile
-  pat-resolveExt pat-compile
+  expr-compile expr-sexp
+  decl-resolveExt decl-compile decl-sexp
+  pat-resolveExt pat-compile pat-sexp
   result-resolveExt result-parseExt
   nodule-name nodule-resolveExt nodule-parseExt)
 
 (define-accessors expr
+  (sexp)
   (compile renv))                       ; ResolveEnv -> IR
 
 (define-accessors decl
+  (sexp)
   resolveExt                            ; ResolveEnv
   (compile renv))                       ; ResolveEnv -> [(Id, IR)]
 
 (define-accessors pat
+  (sexp)
   resolveExt
   ;; Not sure of the best way to present this interface.
   ;; ResolveEnv, IR, IR, IR -> IR
@@ -229,14 +232,14 @@
 
 
 ;; Builtin expressions forms
-(provide expr:lit expr:var expr:call expr:seq expr:lambda expr:let)
+(provide expr:lit expr:var expr:call expr:seq expr:lambda expr:let expr:if)
 
 (define-form expr:lit (value)
-  [sexp value]
+  [(sexp) (if (or (string? value) (number? value)) value (list 'quote value))]
   [(compile env) (list 'quote value)])
 
 (define-form expr:var (name)
-  [sexp `(var ,name)]
+  [(sexp) name]
   [(compile env)
     ;; TODO: better error handling
     (hash-get 'id
@@ -244,14 +247,17 @@
         (lambda () (error 'expr:var "unbound variable ~v" name))))])
 
 (define-form expr:call (func args)
+  [(sexp) (map expr-sexp (cons func args))]
   [(compile env) (map (lambda (x) (expr-compile x env)) (cons func args))])
 
 (define-form expr:seq (a b)
+  [(sexp) `(begin ,(expr-sexp a) ,(expr-sexp b))]
   [(compile env) `(begin ,(expr-compile a env) ,(expr-compile b env))])
 
 (define-form expr:lambda (params expr)
   ;; TODO: case-lambdas? patterns as parameters?
   ;; TODO: check for duplicate names in params
+  [(sexp) `(lambda ,params ,(expr-sexp expr))]
   [(compile env)
     (let* ([ids (map gensym params)]
            [vars (hash-from-keys-values
@@ -262,6 +268,7 @@
          ,(expr-compile expr inner-env)))])
 
 (define-form expr:let (decls exp)
+  [(sexp) `(let ,(map decl-sexp decls) ,(expr-sexp exp))]
   [(compile env)
     (let loop ([decls decls] [env env])
       (match decls
@@ -270,8 +277,16 @@
           `(letrec ,(decl-compile d env)
              ,(loop ds (env-join env (decl-resolveExt d))))]))])
 
+(define-form expr:if (subject then else)
+  [(sexp) `(if ,(expr-sexp subject) ,(expr-sexp then) ,(expr-sexp else))]
+  [(compile env)
+    `(if ,(expr-compile subject env)
+       ,(expr-compile then env)
+       ,(expr-compile else env))])
+
 
 ;; Builtin pattern forms
+;; TODO: sexp method
 (provide pat:one pat:zero pat:let pat:var pat:ann pat:vector)
 
 (define-form pat:one () ;; "underscore" pattern, _, succeeds binding nothing
@@ -330,6 +345,7 @@
 
 
 ;; Builtin declaration forms
+;; TODO: sexp method
 (provide decl:val decl:fun decl:rec decl:tag)
 
 ;; (decl:val Symbol Expr)

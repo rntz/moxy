@@ -10,22 +10,31 @@
 (require "env.rkt")
 
 ;;; TODO: provide
+(define (parse parser env what)
+  (parser
+    env
+    (stream-stream
+      (cond
+        [(port? what) (tokenize what)]
+        [(string? what) (call-with-input-string what tokenize)]
+        [#t (error 'parse "don't know how to parse: ~v" what)]))
+    (lambda (loc msg) (error 'parse "hard error at pos ~a: ~a" loc msg))
+    (lambda (loc msg) (error 'parse "soft error at pos ~a: ~a" loc msg))
+    (lambda (_ r) r)))
+
+(define (parse-all parser env what)
+  (parse (<* parser peof) env what))
 
 ;; Utility wrapper
-(define (parse-with parser port)
-  ((<* parser peof)
-    (void)
-    (stream-stream (stream-map position-token-token (tokenize port)))
-    (lambda (loc msg) `(hard ,loc ,msg))
-    (lambda (loc msg) `(soft ,loc ,msg))
-    (lambda (_ r) `(ok ,r))))
-
 (define (keyword id) (expect (TID id)))
 (define (keysym id) (expect (TSYM id)))
 
 (define comma (keysym ","))
 (define dot (keysym "."))
 (define semi (keysym ";"))
+
+(define p-end (keyword "end"))
+(define p-optional-end (optional p-end))
 
 (define lparen (expect TLPAREN)) (define rparen (expect TRPAREN))
 (define lbrace (expect TLBRACE)) (define rbrace (expect TRBRACE))
@@ -84,7 +93,7 @@
 
 ;; Tries to parse an infix continuation for `left-expr' of precedence at least
 ;; `prec' (i.e. binding at least as tightly as `prec').
-(define (p-infix-expr left-expr prec)
+(define (p-infix-expr prec left-expr)
   ;; TODO: should we have a separate @infix-ops?
   (option left-expr
     (>>= ask
@@ -105,24 +114,101 @@
       ;; right-associativity, the parser we got from @infixes should parse its
       ;; right argument greedily, so that there's nothing left for us to parse
       ;; here (at its infixity, anyway).
-      (lambda (x) (p-infix-expr x prec)))))
+      (lambda (x) (p-infix-expr prec x)))))
 
 (define p-expr (p-expr-at 0))
+
+;; TODO: p-toplevel-decl p-toplevel-decls
+
+
+;; -- Built-in parser parts --
+;; - @exprs -
+(define p-param p-id) ;; TODO: pattern parameters!
+(define p-params (begin-sep-end-by p-param comma))
+(define p-lambda (<$> expr:lambda (parens p-params) (<* p-expr p-optional-end)))
+(define @expr:lambda (record [parser p-lambda]))
+
+(define p-paren-expr (<* p-expr rparen))
+(define @expr:parens (record [parser p-paren-expr]))
+
+(define p-if-expr (<$> expr:if p-expr
+                    (*> (keyword "then") p-expr)
+                    (*> (keyword "else") p-expr)))
+(define @expr:if (record [parser p-if-expr]))
+
+;; - @infixes -
+(define (p-seq-infix first-expr)
+  (<$> (partial expr:seq first-expr) (p-expr-at 0)))
+(define @infix:seq (record [precedence 0] [parser p-seq-infix]))
+
+(define p-arguments (begin-sep-end-by p-expr comma))
+(define (p-call-infix func-expr)
+  (<$> (partial expr:call func-expr) (<* p-arguments rparen)))
+(define @infix:call (record [precedence 11] [parser p-call-infix]))
+
+;; - @decls -
+(define p-val-decl
+  ;; TODO: patterns!
+  (<$> decl:val p-id (*> (keysym "=") p-expr)))
+(define @decl:val (record [parser p-val-decl]))
 
 
 ;; -- The default/built-in parser extensions --
 ;; TODO: if, lambda, list, return, case, dict literals
 
-;; Precedence levels, taken largely from Haskell:
+(define builtin-@exprs
+  (hash
+    (TSYM "\\") @expr:lambda
+    TLPAREN     @expr:parens
+    (TID "if")  @expr:if))
+
+(define builtin-@infixes
+  (hash
+    TLPAREN    @infix:call
+    (TSYM ";") @infix:seq
+    ;; TODO: arithmetic, (in)equalities, $, ||, &&, function composition
+    ;; elm-style "|>" operator?
+    ))
+
+(define builtin-@decls
+  (hash
+    (TID "val") @decl:val
+    ;; (TID "fun") @decl:fun
+    ;; (TID "rec") @decl:rec
+    ))
+
+(define builtin-@pats (hash))
+
+(define builtin-parse-env
+  (hash
+    @exprs builtin-@exprs
+    @infixes builtin-@infixes
+    @decls builtin-@decls
+    @pats builtin-@pats
+    ))
+
+;; Precedence levels, taken from Haskell & modified slightly (not all of these
+;; operators are actually in our language, but they could be):
 ;;
-;;   infixr 0 $
-;;   infixr 2 ||
-;;   infixr 3 &&
-;;   infixr 5 : ++
-;;   infixl 6 + -
-;;   infixl 7 * /
-;;   infixr 8 ^
-;;   infixl 10 function application f(x,y,z)
+;;   infixR 0 ;
+;;   infixR 1 $
+;;   infixR 2 >> >>=
+;;   infixL 3 <|>
+;;   infixR 3 || &&& ***
+;;   infixL 4 <$> <*> *> <*
+;;   infixR 4 &&
+;;   infix  5 == /= <= < >= >
+;;   infixR 6 : ++
+;;   infixL 7 + -
+;;   infixL 8 * /
+;;   infixR 9 ^
+;;   infixR 10 .
+;;   infixL 11 function application f(x,y,z)
+;;
+;; "IT GOES TO ELEVEN"
+;;
+;; TODO: a way to handle nonassociative infix operators (e.g. "a <= b <= c"
+;; should result in a parse error)
 
 ;; (define (mk-funcalls func argses)
 ;;   (foldl (lambda (args f) (expr:call f args)) func argses))
