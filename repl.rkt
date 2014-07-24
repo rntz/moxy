@@ -29,8 +29,9 @@
                      (find-semi toks (cons tok accum) (- paren-level 1)))]
         [_ (find-semi toks (cons tok accum) paren-level)])]))
 
-(define (repl)
-  (read-line) ;; crude hack to make this work inside the racket repl
+(define (repl [hack #t])
+  (when hack
+    (read-line)) ;; crude hack to make this work inside the racket repl
   (let eval-next ([parse-env init-parse-env]
                   [resolve-env init-resolve-env]
                   [toks '()])
@@ -72,3 +73,6 @@
             (get-expr (stream->list (call-with-input-string line tokenize))
                       accum
                       paren-level))]))))
+
+(module+ main
+  (repl #f))
