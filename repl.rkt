@@ -16,8 +16,6 @@
 (define-tag NeedMore accum paren-level)
 (define-tag UnbalancedParens)
 
-(define (revappend a b) (append (reverse a) b)) ;TODO LATER: optimized version
-
 (define (find-semi toks accum paren-level)
   (match toks
     ['() (NeedMore accum paren-level)]
@@ -65,9 +63,10 @@
           (get-expr '() '() 0)]
         [(NeedMore accum paren-level)
           ;; Grab a line and keep looking for the semi
-          (printf (if (null? accum) "MLOID: " "   ... "))
+          ;;(printf (if (null? accum) "MLOID: " "   ... "))
+          (printf (if (null? accum) "- " "= "))
           (define line (read-line))
-          (if (eof-object? line) (eprintf "\nGoodbye.\n")
+          (if (eof-object? line) (eprintf "Bye!\n")
             (get-expr (stream->list (call-with-input-string line tokenize))
                       accum
                       paren-level))]))))
