@@ -5,9 +5,10 @@
 (require "util.rkt")
 (require "values.rkt")
 (require "env.rkt")
+(require "lex.rkt")
 (require "pcomb.rkt")
 (require "parse.rkt")
-(require "lex.rkt")
+(require "builtin-parse.rkt")
 
 (define init-parse-env builtin-parse-env)
 (define init-resolve-env env-empty)
@@ -41,6 +42,7 @@
       (printf "result: ~v\n" result)  ;FIXME
       result)
     (define (parse-eval-toks toks)
+      ;; TODO: allow either declarations or an expression
       ((<* (parse-eval resolve-env) peof)
         parse-env
         (stream-stream (in-list toks))

@@ -171,6 +171,7 @@
 
 (provide
   @vars @vars-join @vars-empty
+  @var:var @var:ctor @vars-var @vars-ctor
   @var-style @var-id @var-tag-id @var-tag-arity
   )
 
@@ -184,6 +185,7 @@
 ;; - tag-arity: Arity of ctor.
 (define-ExtPoint @vars hash-union (hash))
 
+;; TODO: should this go here or in builtin-parse.rkt?
 (define-form @var:var (name id) [style 'var])
 (define-form @var:ctor (name id tag-id tag-arity) [style 'ctor])
 
@@ -237,204 +239,3 @@
   name
   resolveExt
   parseExt)
-
-
-;; Builtin expressions forms
-(provide expr:lit expr:var expr:call expr:seq expr:lambda expr:let expr:if)
-
-(define-form expr:lit (value)
-  [(sexp) (if (or (string? value) (number? value)) value (list 'quote value))]
-  [(compile env) (list 'quote value)])
-
-(define-form expr:var (name)
-  [(sexp) name]
-  [(compile env)
-    ;; TODO: better error handling
-    (hash-get 'id
-      (hash-get name (env-get @vars env)
-        (lambda () (error 'expr:var "unbound variable ~v" name))))])
-
-(define-form expr:call (func args)
-  [(sexp) (map expr-sexp (cons func args))]
-  [(compile env) (map (lambda (x) (expr-compile x env)) (cons func args))])
-
-(define-form expr:seq (a b)
-  [(sexp) `(begin ,(expr-sexp a) ,(expr-sexp b))]
-  [(compile env) `(begin ,(expr-compile a env) ,(expr-compile b env))])
-
-(define-form expr:lambda (params expr)
-  ;; TODO: case-lambdas? patterns as parameters?
-  ;; TODO: check for duplicate names in params
-  [(sexp) `(lambda ,params ,(expr-sexp expr))]
-  [(compile env)
-    (let* ([ids (map gensym params)]
-           [vars (hash-from-keys-values
-                   params
-                   (map @var:var params ids))]
-           [inner-env (env-join env (env-single @vars vars))])
-      `(lambda (,@ids)
-         ,(expr-compile expr inner-env)))])
-
-(define-form expr:let (decls exp)
-  [(sexp) `(let ,(map decl-sexp decls) ,(expr-sexp exp))]
-  [(compile env)
-    (let loop ([decls decls] [env env])
-      (match decls
-        ['() (expr-compile exp env)]
-        [(cons d ds)
-          `(letrec ,(decl-compile d env)
-             ,(loop ds (env-join env (decl-resolveExt d))))]))])
-
-(define-form expr:if (subject then else)
-  [(sexp) `(if ,(expr-sexp subject) ,(expr-sexp then) ,(expr-sexp else))]
-  [(compile env)
-    `(if ,(expr-compile subject env)
-       ,(expr-compile then env)
-       ,(expr-compile else env))])
-
-
-;; Builtin pattern forms
-;; TODO: sexp method
-(provide pat:one pat:zero pat:let pat:var pat:ann pat:vector)
-
-(define-form pat:one () ;; "underscore" pattern, _, succeeds binding nothing
-  [resolveExt env-empty]
-  [(compile env subject on-success on-failure) on-success])
-
-(define-form pat:zero (names) ;; pattern that always fails, binding names
-  [ids (map gensym names)]
-  [resolveExt (env-single @vars (hash-from-keys-values names
-                                  (map @var:var names ids)))]
-  [(compile env subject on-success on-failure) on-failure])
-
-(define-form pat:let (name expr) ;; always binds name to expr
-  [id (gensym name)]
-  [resolveExt (env-single @vars (@vars-var name id))]
-  [(compile env subject on-success on-failure)
-    `(let ((,id ,(expr-compile expr env))) ,on-success)])
-
-(define-form pat:var (name)
-  [id (gensym name)]
-  [resolveExt (env-single @vars (@vars-var name id))]
-  [(compile env subject on-success on-failure)
-    `(let ([,id ,subject]) ,on-success)])
-
-(define-form pat:ann (name args)
-  [args-pat (pat:vector args)]
-  [resolveExt (pat-resolveExt args-pat)]
-  [(compile env subject on-success on-failure)
-    ;; TODO: useful error handling.
-    (let* ([info (hash-get name (env-get @vars env)
-                   (lambda () (error 'pat:ann "unbound ctor ~v" name)))]
-           [ctor-id (@var-id info)]
-           [tag-id (hash-get 'tag-id info
-                     (lambda () (error 'pat:ann "~v is not a ctor" name)))]
-           [tag-arity (hash-get 'tag-arity info)]
-           [tmp (gensym 'tmp)])
-      `(if (ann-isa? ,tag-id ,subject)
-         ;; match each pat in args against (ann-args subject)
-         (let ((,tmp (ann-args ,subject)))
-           ,(pat-compile args-pat env tmp on-success on-failure))
-         ,on-failure))])
-
-(define-form pat:vector (elems)
-  [resolveExt (env-join* (map pat-resolveExt elems))]
-  [(compile env subject on-success on-failure)
-    (let loop ([i 0] [env env])
-      (if (>= i (vector-length elems)) on-success
-        (let ([tmp (gensym 'tmp)]
-              [elem (vector-ref elems i)])
-          `(let ([,tmp (vector-ref ,subject ',i)])
-             ,(pat-compile elem tmp
-                (loop (+ i 1) (env-join env (pat-resolveExt elem)))
-                on-failure)))))])
-
-;; TODO: pat:and, pat:or, pat:lit, pat:guard
-
-
-;; Builtin declaration forms
-;; TODO: maybe I should put these with their parsers in parse.rkt?
-;; or in builtin-extensions.rkt or something?
-
-;; TODO: sexp method
-(provide decl:val decl:fun decl:rec decl:tag)
-
-;; (decl:val Symbol Expr)
-(define-form decl:val (name expr)
-  [(sexp) `(val ,name ,(expr-sexp expr))]
-  [id (gensym name)]
-  [resolveExt (env-single @vars (@vars-var name id))]
-  [(compile env) `((,id ,(expr-compile expr env)))])
-
-;; (decl:fun Symbol [Symbol] Expr)
-;; TODO: funs with branches
-(define-form decl:fun (name params expr)
-  [(sexp) `(fun ,name ,params ,(expr-sexp expr))]
-  [id (gensym name)]
-  [resolveExt (env-single @vars (@vars-var name id))]
-  [(compile env)
-    (let ([inner-env (env-join env resolveExt)])
-      `((,id ,(expr-compile (expr:lambda params expr) inner-env))))])
-
-;; (decl:rec [Decl])
-(define-form decl:rec (decls)
-  [(sexp) `(rec ,@(map decl-sexp decls))]
-  [resolveExt (env-join* (map decl-resolveExt decls))]
-  ;; TODO: we should check for definition cycles somehow!
-  ;; if we compiled to IR instead of to Racket this might be easier.
-  [(compile env)
-    (let ([env (env-join env resolveExt)])
-      (apply append (map (lambda (x) (decl-compile x env)) decls)))])
-
-;; (decl:tag Symbol (Maybe [Symbol]))
-(define-form decl:tag (name params)
-  [(sexp) `(tag ,name ,params)]
-  [id (gensym (format "ctor:~a" name))]
-  [tag-id (gensym (format "tag:~a" name))]
-  [info (@var:ctor name id tag-id (maybe params 0 length))]
-  [resolveExt (env-single @vars (hash name info))]
-  [(compile env)
-    `((,tag-id (new-tag ',name ',(from-maybe params '())))
-      (,id ,(match params
-              [(Just l) `(lambda ,l (make-ann ,tag-id ,@l))]
-              [(None) `(make-ann ,tag-id)])))])
-
-
-;; Builtin result forms
-(provide result:empty result:decl result:import)
-
-(define-form result:empty ()
-  [resolveExt env-empty]
-  [parseExt env-empty])
-
-;; (result:decl Decl)
-(define-form result:decl (decl)
-  [resolveExt (decl-resolveExt decl)]
-  [parseExt env-empty])
-
-;; TODO: more powerful imports (qualifying, renaming, etc.)
-;; (result:import Nodule)
-(define-form result:import (nodule)
-  [resolveExt (nodule-resolveExt nodule)]
-  [parseExt (nodule-parseExt nodule)])
-
-;; (define-form result:define-extension-point (name join empty)
-;;   [ext-point (ExtPoint name (gensym name) (Monoid join empty))]
-;;   [resolveExt env-empty]
-;;   [parseExt env-empty])
-
-;; ;; TODO
-;; (define-decl decl:define-extension-point (name oper unit))
-;; (define-decl decl:define-extension (point expr))
-
-;; ;; (decl:module Symbol [Decl])
-;; (define-decl decl:module (name body)
-;;   [id (gensym name)]
-;;   [info (hash 'id id)]
-;;   )
-
-;; ;; (decl:import Symbol Module)
-;; ;; where Module is a hash with (parseExt resolveExt) keys.
-;; ;; the Module info gets provided by the parsers.
-;; (define-decl decl:import (name nodule)
-;;   )

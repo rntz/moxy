@@ -4,16 +4,23 @@
 (require (only-in parser-tools/lex position-token-token))
 
 (require "util.rkt")
-(require "lex.rkt")
-(require "pcomb.rkt")
 (require "values.rkt")
 (require "env.rkt")
+(require "lex.rkt")
+(require "pcomb.rkt")
+(require "core-forms.rkt")
 
-(provide parse parse-all
-  builtin-parse-env
-  p-expr p-decl p-decls
-  parse-eval parse-eval-one
-  )
+(provide
+  parse parse-all
+  keyword keysym comma dot semi equals p-end p-optional-end
+  lparen rparen lbrace rbrace lbrack rbrack
+  parens braces brackets
+  p-str p-num p-id
+  listish
+  ;; TODO: p-pat
+  p-expr p-expr-at p-prefix-expr-at p-infix-expr
+  p-decl p-decls
+  parse-eval parse-eval-one)
 
 (define (parse parser env what)
   (parser
@@ -54,9 +61,6 @@
 (define p-str (<$> TSTR-value (satisfy TSTR?)))
 (define p-num (<$> TNUM-value (satisfy TNUM?)))
 (define p-id (<$> (compose string->symbol TID-value) (satisfy TID?)))
-
-;; (define p-lit (tag 'lit (choice p-str p-num)))
-;; (define p-atom (choice (tag 'id p-id) p-lit))
 
 ;; A comma-separated-list, except leading and/or trailing commas are allowed.
 (define (listish p) (begin-sep-end-by p comma))
@@ -176,10 +180,11 @@
       (@top-parse-eval ext resolve-env))))
 
 
-;; -- Built-in parser parts --
-(define p-params (listish p-id))
+;; This has to go here rather than builtin-parse.rkt since we use it in
+;; parse-eval-one to handle regular decls in top-level position.
+(define (@top:@decl decl)
+  (record [parse-eval (parse-eval-decl (@decl-parser decl))]))
 
-;; - @tops -
 (define ((parse-eval-decl decl-parser) resolve-env)
   (>>= decl-parser
     (lambda (decl)
@@ -188,188 +193,11 @@
            ,@(for/list ([id-code (decl-compile decl resolve-env)])
                `(define ,@id-code))))
       (printf "-- EVALING: ~v --\n" code) ;FIXME
+      ;; TODO: needs to have a namespace passed in
       (eval code)
       (return (result:decl decl)))))
-(define (@top:@decl decl)
-  (record [parse-eval (parse-eval-decl (@decl-parser decl))]))
 
-
-;; - @decls -
-(define p-val-decl
-  ;; TODO: patterns!
-  (<$> decl:val p-id (*> equals p-expr)))
-(define @decl:val (record [parser p-val-decl]))
-
-(define @decl:fun
-  (record [parser (<$> decl:fun p-id (parens p-params) (*> equals p-expr))]))
-
-(define @decl:rec
-  (record [parser (<$> decl:rec (sep-by1 p-decl (keyword "and")))]))
-
-(define p-tag-decl
-  ;; TODO: require tags be upper-case?
-  ;; TODO: require other identifiers be lower-case?
-  (<$> decl:tag p-id (option-maybe (parens (listish p-id)))))
-(define @decl:tag (record [parser p-tag-decl]))
-
-
-;; - @exprs -
-;; TODO: pattern parameters
-(define p-lambda (<$> expr:lambda (parens p-params) (<* p-expr p-optional-end)))
-(define @expr:lambda (record [parser p-lambda]))
-
-(define p-paren-expr (<* p-expr rparen))
-(define @expr:parens (record [parser p-paren-expr]))
-
-(define p-if-expr (<$> expr:if p-expr
-                    (*> (keyword "then") p-expr)
-                    (*> (keyword "else") p-expr)))
-(define @expr:if (record [parser p-if-expr]))
-
-(define p-let-expr (<$> expr:let (<* p-decls (keyword "in"))
-                                 (<* p-expr p-optional-end)))
-(define @expr:let (record [parser p-let-expr]))
-
-
-;; - @infixes -
-(define (p-seq-infix first-expr)
-  (<$> (partial expr:seq first-expr) (p-expr-at 0)))
-(define @infix:seq (record [precedence 0] [parser p-seq-infix]))
-
-(define p-arguments (listish p-expr))
-(define (p-call-infix func-expr)
-  (<$> (partial expr:call func-expr) (<* p-arguments rparen)))
-(define @infix:call (record [precedence 11] [parser p-call-infix]))
-
-
-;; -- The default/built-in parser extensions --
-;; TODO: list, case, dict literals
-
-(define builtin-@decls
-  (hash
-    (TID "val") @decl:val
-    (TID "fun") @decl:fun
-    (TID "tag") @decl:tag
-    (TID "rec") @decl:rec
-    ))
-
-(define builtin-@exprs
-  (hash
-    (TSYM "\\") @expr:lambda
-    TLPAREN     @expr:parens
-    (TID "if")  @expr:if
-    ;; TODO: let
-    (TID "let") @expr:let
-    ))
-
-(define builtin-@infixes
-  (hash
-    TLPAREN    @infix:call
-    (TSYM ";") @infix:seq
-    ;; TODO: arithmetic, (in)equalities, $, ||, &&, function composition
-    ;; elm-style "|>" operator?
-    ))
-
-(define builtin-@pats (hash))
-
-(define builtin-parse-env
-  (hash
-    @exprs builtin-@exprs
-    @infixes builtin-@infixes
-    @decls builtin-@decls
-    @pats builtin-@pats
-    ))
-
-;; Precedence levels, taken from Haskell & modified slightly (not all of these
-;; operators are actually in our language, but they could be):
-;;
-;;   infixR 0 ;
-;;   infixR 1 $
-;;   infixR 2 >> >>=
-;;   infixL 3 <|>
-;;   infixR 3 || &&& ***
-;;   infixL 4 <$> <*> *> <*
-;;   infixR 4 &&
-;;   infix  5 == /= <= < >= >
-;;   infixR 6 : ++
-;;   infixL 7 + -
-;;   infixL 8 * /
-;;   infixR 9 ^
-;;   infixR 10 .
-;;   infixL 11 function application f(x,y,z)
-;;
-;; "IT GOES TO ELEVEN"
-;;
-;; TODO: a way to handle nonassociative infix operators (e.g. "a <= b <= c"
-;; should result in a parse error)
-
-;; (define (mk-funcalls func argses)
-;;   (foldl (lambda (args f) (expr:call f args)) func argses))
-
-;; (define p-expr-args (parens (p-listish p-expr)))
-
-;; Parses an expr of the form
-;; > func(args1...)(args2...)...(argsN...)
-;; for any number N of argument lists (including 0).
-;; (define p-funcall
-;;   (<$> mk-funcalls p-expr-call-head (many p-expr-args)))
-
-;; (define p-let-decl
-;;   (tag 'let
-;;     (*> (keyword "let") p-pat)
-;;     (*> equals p-expr)))
-
-;; (define p-params (p-listish p-ident))
-
-;; (define p-fun-decl
-;;   (tag 'fn
-;;     (*> (keyword "fun") p-ident)
-;;     (parens p-params)
-;;     (eta p-block)))
-
-;; (define p-decls
-;;   (choice
-;;     (<$> cons p-let-decl (*> semi (eta p-decls)))
-;;     (<$> cons p-fun-decl (eta p-decls))
-;;     (<$> cons (tag 'expr p-expr)
-;;               (option '() (*> semi (eta p-decls))))
-;;     (return '(empty))))
-
-;; (define p-block (between lbrace rbrace p-decls))
-
-;; (define p-lambda
-;;   (tag 'lambda
-;;     (*> (keysym "\\") p-params)
-;;     p-block))
-
-;; (define p-else
-;;   (choice p-block
-;;     (<$> (lambda (exp) `((expr ,exp))) (eta p-if))))
-
-;; (define p-if
-;;   (tag 'if
-;;     (*> (keyword "if") p-expr)
-;;     p-block
-;;     (option '(empty) (*> (keyword "else") p-else))))
-
-;; Format of s-expr representations:
-;; EXPR
-;; ::= (lit LIT)
-;;   | (id SYMBOL)
-;;   | (list (EXPR*) EXPR?)
-;;   | (dict ((EXPR EXPR)*))
-;;   | (lambda ((VAR*) VAR?) BLOCK)
-;;   | (call EXPR (EXPR*) EXPR?)
-;;   | (block BLOCK)
-;;   | (if EXPR BLOCK BLOCK)
-;;   | (return EXPR)
-;;   -- TODO: case-expression
-;;
-;; BLOCK ::= (DECL* empty?)
-;;
-;; DECL
-;; ::= (let PAT EXPR)
-;;   | (fn NAME ((VAR*) VAR?) BLOCK)
-;;   | (expr EXPR)
-;;
-;; PAT ::= SYMBOL
+;; (result:decl Decl)
+(define-form result:decl (decl)
+  [resolveExt (decl-resolveExt decl)]
+  [parseExt env-empty])

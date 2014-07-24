@@ -4,6 +4,7 @@
 (require "values.rkt")
 (require "env.rkt")
 (require "parse.rkt")
+(require "builtin-parse.rkt")
 
 (define parse-env builtin-parse-env)
 (define resolve-env env-empty)
