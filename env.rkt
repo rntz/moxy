@@ -353,6 +353,9 @@
 
 
 ;; Builtin declaration forms
+;; TODO: maybe I should put these with their parsers in parse.rkt?
+;; or in builtin-extensions.rkt or something?
+
 ;; TODO: sexp method
 (provide decl:val decl:fun decl:rec decl:tag)
 
@@ -364,9 +367,9 @@
   [(compile env) `((,id ,(expr-compile expr env)))])
 
 ;; (decl:fun Symbol [Symbol] Expr)
+;; TODO: funs with branches
 (define-form decl:fun (name params expr)
   [(sexp) `(fun ,name ,params ,(expr-sexp expr))]
-  ;; TODO: functions with branches
   [id (gensym name)]
   [resolveExt (env-single @vars (@vars-var name id))]
   [(compile env)
@@ -381,16 +384,18 @@
     (let ([env (env-join env resolveExt)])
       (apply append (map (lambda (x) (decl-compile x env)) decls)))])
 
-;; (decl:tag Symbol [Symbol])
+;; (decl:tag Symbol (Maybe [Symbol]))
 (define-form decl:tag (name params)
   [(sexp) `(tag ,name ,params)]
   [id (gensym (format "ctor:~a" name))]
   [tag-id (gensym (format "tag:~a" name))]
-  [info (@var:ctor name id tag-id (length params))]
+  [info (@var:ctor name id tag-id (maybe params 0 length))]
   [resolveExt (env-single @vars (hash name info))]
   [(compile env)
-    `((,tag-id (new-tag name params))
-      (,id (lambda (,@params) (make-ann ,tag-id ,@params))))])
+    `((,tag-id (new-tag ',name ',(from-maybe params '())))
+      (,id ,(match params
+              [(Just l) `(lambda ,l (make-ann ,tag-id ,@l))]
+              [(None) `(make-ann ,tag-id)])))])
 
 
 ;; Builtin result forms

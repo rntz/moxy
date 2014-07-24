@@ -169,6 +169,7 @@
 (define (maybe? x) (or (Just? x) (None? x)))
 
 (define (maybe v default inject)
+  
   (match v [(None) default] [(Just x) (inject x)]))
 
 (define (from-maybe v default) (maybe v default identity))
@@ -178,7 +179,7 @@
 (define (maybe-filter v ok?)
   (match v
     [(Just x) (if (ok? x) v None)]
-    [None v]))
+    [(None) v]))
 
 (define-tag Monoid join empty)
 (define-tag ExtPoint name uid monoid)

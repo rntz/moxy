@@ -38,6 +38,7 @@
 (define comma (keysym ","))
 (define dot (keysym "."))
 (define semi (keysym ";"))
+(define equals (keysym "="))
 
 (define p-end (keyword "end"))
 (define p-optional-end (optional p-end))
@@ -58,7 +59,7 @@
 ;; (define p-atom (choice (tag 'id p-id) p-lit))
 
 ;; A comma-separated-list, except leading and/or trailing commas are allowed.
-(define (p-listish p) (begin-sep-end-by p comma))
+(define (listish p) (begin-sep-end-by p comma))
 
 
 ;; Problem: precedence not taken into account. "let" does not have same
@@ -167,15 +168,17 @@
       (try-one-maybe
         (lambda (t)
           (match (hash-lookup t (env-get @tops parse-env))
-            [None (maybe-map
-                    (hash-lookup t (env-get @decls parse-env))
-                    @top:@decl)]
+            [(None) (maybe-map
+                      (hash-lookup t (env-get @decls parse-env))
+                      @top:@decl)]
             [x x]))))
     (lambda (ext)
       (@top-parse-eval ext resolve-env))))
 
 
 ;; -- Built-in parser parts --
+(define p-params (listish p-id))
+
 ;; - @tops -
 (define ((parse-eval-decl decl-parser) resolve-env)
   (>>= decl-parser
@@ -190,15 +193,28 @@
 (define (@top:@decl decl)
   (record [parse-eval (parse-eval-decl (@decl-parser decl))]))
 
+
 ;; - @decls -
 (define p-val-decl
   ;; TODO: patterns!
-  (<$> decl:val p-id (*> (keysym "=") p-expr)))
+  (<$> decl:val p-id (*> equals p-expr)))
 (define @decl:val (record [parser p-val-decl]))
 
+(define @decl:fun
+  (record [parser (<$> decl:fun p-id (parens p-params) (*> equals p-expr))]))
+
+(define @decl:rec
+  (record [parser (<$> decl:rec (sep-by1 p-decl (keyword "and")))]))
+
+(define p-tag-decl
+  ;; TODO: require tags be upper-case?
+  ;; TODO: require other identifiers be lower-case?
+  (<$> decl:tag p-id (option-maybe (parens (listish p-id)))))
+(define @decl:tag (record [parser p-tag-decl]))
+
+
 ;; - @exprs -
-(define p-param p-id) ;; TODO: pattern parameters!
-(define p-params (begin-sep-end-by p-param comma))
+;; TODO: pattern parameters
 (define p-lambda (<$> expr:lambda (parens p-params) (<* p-expr p-optional-end)))
 (define @expr:lambda (record [parser p-lambda]))
 
@@ -214,19 +230,28 @@
                                  (<* p-expr p-optional-end)))
 (define @expr:let (record [parser p-let-expr]))
 
+
 ;; - @infixes -
 (define (p-seq-infix first-expr)
   (<$> (partial expr:seq first-expr) (p-expr-at 0)))
 (define @infix:seq (record [precedence 0] [parser p-seq-infix]))
 
-(define p-arguments (begin-sep-end-by p-expr comma))
+(define p-arguments (listish p-expr))
 (define (p-call-infix func-expr)
   (<$> (partial expr:call func-expr) (<* p-arguments rparen)))
 (define @infix:call (record [precedence 11] [parser p-call-infix]))
 
 
 ;; -- The default/built-in parser extensions --
-;; TODO: if, lambda, list, return, case, dict literals
+;; TODO: list, case, dict literals
+
+(define builtin-@decls
+  (hash
+    (TID "val") @decl:val
+    (TID "fun") @decl:fun
+    (TID "tag") @decl:tag
+    (TID "rec") @decl:rec
+    ))
 
 (define builtin-@exprs
   (hash
@@ -243,13 +268,6 @@
     (TSYM ";") @infix:seq
     ;; TODO: arithmetic, (in)equalities, $, ||, &&, function composition
     ;; elm-style "|>" operator?
-    ))
-
-(define builtin-@decls
-  (hash
-    (TID "val") @decl:val
-    ;; (TID "fun") @decl:fun
-    ;; (TID "rec") @decl:rec
     ))
 
 (define builtin-@pats (hash))
@@ -299,7 +317,7 @@
 ;; (define p-let-decl
 ;;   (tag 'let
 ;;     (*> (keyword "let") p-pat)
-;;     (*> (keysym "=") p-expr)))
+;;     (*> equals p-expr)))
 
 ;; (define p-params (p-listish p-ident))
 

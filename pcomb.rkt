@@ -12,7 +12,8 @@
   >>= <* *> <$>
   try ask local
   psum choice pzero peof
-  option optional many many1 skip-many skip-many1 str-many str-many1
+  option optional option-maybe
+  many many1 skip-many skip-many1 str-many str-many1
   sep-by sep-by1 sep-by1 end-by end-by1 sep-end-by sep-end-by1
   begin-sep-end-by begin-sep-end-by1
   between pmap-maybe pfilter
@@ -224,6 +225,7 @@
 ;;; Useful combinators
 (define (option x p) (choice p (return x)))
 (define (optional p) (option (void) p))
+(define (option-maybe p) (option None (<$> Just p)))
 
 ;;; Q: won't this overflow stack during parsing of long list?
 ;;; A: no, it'll just fill up the heap with continuation closures.
@@ -258,7 +260,7 @@
       (lambda (ate res)
         (match (func res)
           [(Just x) (ok ate x)]
-          [None ((if ate hardk softk) loc (msgf res))])))))
+          [(None) ((if ate hardk softk) loc (msgf res))])))))
 
 (define (pfilter parser pred msgf)
   (pmap-maybe parser (lambda (x) (if (pred x) (Just x) None)) msgf))
