@@ -56,8 +56,8 @@
 (define (env-single ext-point value)
   (hash ext-point value))
 
-(define (env-get ext-point ext)
-  (hash-get ext-point ext
+(define (env-get ext-point env)
+  (hash-get ext-point env
     (lambda () (ExtPoint-empty ext-point))))
 
 
@@ -379,7 +379,9 @@
 ;; (decl:rec [Decl])
 (define-form decl:rec (decls)
   [(sexp) `(rec ,@(map decl-sexp decls))]
-  [resolveExt (env-join (map decl-resolveExt decls))]
+  [resolveExt (env-join* (map decl-resolveExt decls))]
+  ;; TODO: we should check for definition cycles somehow!
+  ;; if we compiled to IR instead of to Racket this might be easier.
   [(compile env)
     (let ([env (env-join env resolveExt)])
       (apply append (map (lambda (x) (decl-compile x env)) decls)))])
