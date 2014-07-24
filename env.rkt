@@ -159,9 +159,9 @@
 ;; Maps tokens to (@top)s.
 (define-ExtPoint @tops hash-union (hash))
 (define-accessors @top
-  ;; ResolveEnv -> Parser Result
-  ;; TODO: Do we need to pass in some kind of "state" for the evaluator?
-  (parse-eval resolve-env))
+  ;; ResolveEnv, NS -> Parser Result
+  ;; ns is the Racket namespace in which we eval code.
+  (parse-eval resolve-env ns))
 
 
 ;; -- Built-in ResolveEnv extension points --

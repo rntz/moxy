@@ -147,13 +147,13 @@
 ;;
 ;; It's also weird (to me). It threads the evaluation through the parser rather
 ;; than repeatedly parsing and then evaluating.
-(define (parse-eval resolve-env)
+(define (parse-eval resolve-env ns)
   ;; (printf "parse-eval: ~v\n" resolve-env) ;FIXME
   (let loop ([resolve-env resolve-env]
              [penv env-empty]
              [renv env-empty])
     (choice
-      (>>= (parse-eval-one resolve-env)
+      (>>= (parse-eval-one resolve-env ns)
         (lambda (result)
           ;; (printf "parse-eval: got result: ~v\n" result) ;; FIXME
           (let ([result-penv (result-parseExt result)]
@@ -165,7 +165,7 @@
                     (env-join renv result-renv))))))
       (eta (return (record [resolveExt renv] [parseExt penv]))))))
 
-(define (parse-eval-one resolve-env)
+(define (parse-eval-one resolve-env ns)
   ;; (printf "parse-eval-one: ~v\n" resolve-env) ;FIXME
   (>>= ask
     (lambda (parse-env)
@@ -177,7 +177,7 @@
                       @top:@decl)]
             [x x]))))
     (lambda (ext)
-      (@top-parse-eval ext resolve-env))))
+      (@top-parse-eval ext resolve-env ns))))
 
 
 ;; This has to go here rather than builtin-parse.rkt since we use it in
@@ -185,7 +185,7 @@
 (define (@top:@decl decl)
   (record [parse-eval (parse-eval-decl (@decl-parser decl))]))
 
-(define ((parse-eval-decl decl-parser) resolve-env)
+(define ((parse-eval-decl decl-parser) resolve-env ns)
   (>>= decl-parser
     (lambda (decl)
       (define code
@@ -193,8 +193,7 @@
            ,@(for/list ([id-code (decl-compile decl resolve-env)])
                `(define ,@id-code))))
       (printf "-- EVALING: ~v --\n" code) ;FIXME
-      ;; TODO: needs to have a namespace passed in
-      (eval code)
+      (eval code ns)
       (return (result:decl decl)))))
 
 ;; (result:decl Decl)

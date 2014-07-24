@@ -9,9 +9,7 @@
 (require "pcomb.rkt")
 (require "parse.rkt")
 (require "builtin-parse.rkt")
-
-(define init-parse-env builtin-parse-env)
-(define init-resolve-env env-empty)
+(require "runtime.rkt")
 
 (define-tag FoundSemi rev-toks after)
 (define-tag NeedMore accum paren-level)
@@ -32,8 +30,9 @@
 (define (repl [hack #t])
   (when hack
     (read-line)) ;; crude hack to make this work inside the racket repl
-  (let eval-next ([parse-env init-parse-env]
-                  [resolve-env init-resolve-env]
+  (define-values (resolve-env ns) (make-runtime))
+  (let eval-next ([parse-env builtin-parse-env]
+                  [resolve-env resolve-env]
                   [toks '()])
     (define (print-error loc msg)
       ;; TODO?: make locations work
@@ -44,7 +43,7 @@
       result)
     (define (parse-eval-toks toks)
       ;; TODO: allow either declarations or an expression
-      ((<* (parse-eval resolve-env) peof)
+      ((<* (parse-eval resolve-env ns) peof)
         parse-env
         (stream-stream (in-list toks))
         print-error
