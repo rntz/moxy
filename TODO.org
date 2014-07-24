@@ -2,6 +2,8 @@
 - Make up a name for the language
 - Make base ResolveEnv with built-in functions
   - Expose parser-combinators to MLOID
+- How do booleans work between MLOID & racket?
+- How can MLOID generate racket code?
 - Implement syntax-extension forms
 - Implement more forms
 - Implement casing, either w/in language or in Racket
