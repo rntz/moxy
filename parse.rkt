@@ -148,14 +148,14 @@
 ;; It's also weird (to me). It threads the evaluation through the parser rather
 ;; than repeatedly parsing and then evaluating.
 (define (parse-eval resolve-env ns)
-  ;; (printf "parse-eval: ~v\n" resolve-env) ;FIXME
+  ;; (eprintf "parse-eval: ~v\n" resolve-env) ;FIXME
   (let loop ([resolve-env resolve-env]
              [penv env-empty]
              [renv env-empty])
     (choice
       (>>= (parse-eval-one resolve-env ns)
         (lambda (result)
-          ;; (printf "parse-eval: got result: ~v\n" result) ;; FIXME
+          ;; (eprintf "parse-eval: got result: ~v\n" result) ;; FIXME
           (let ([result-penv (result-parseExt result)]
                 [result-renv (result-resolveExt result)])
             (local
@@ -166,7 +166,7 @@
       (eta (return (record [resolveExt renv] [parseExt penv]))))))
 
 (define (parse-eval-one resolve-env ns)
-  ;; (printf "parse-eval-one: ~v\n" resolve-env) ;FIXME
+  ;; (eprintf "parse-eval-one: ~v\n" resolve-env) ;FIXME
   (>>= ask
     (lambda (parse-env)
       (try-one-maybe
@@ -192,7 +192,7 @@
         `(begin
            ,@(for/list ([id-code (decl-compile decl resolve-env)])
                `(define ,@id-code))))
-      (printf "-- EVALING: ~v --\n" code) ;FIXME
+      ;;(eprintf "-- EVAL: ~v --\n" code) ;FIXME
       (eval code ns)
       (return (result:decl decl)))))
 
