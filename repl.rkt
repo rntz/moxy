@@ -28,6 +28,9 @@
                      (find-semi toks (cons tok accum) (- paren-level 1)))]
         [_ (find-semi toks (cons tok accum) paren-level)])]))
 
+(define-tag Result result)
+(define-tag Expr expr)
+
 (define (repl [hack #t])
   (when hack
     (read-line)) ;; crude hack to make this work inside the racket repl
@@ -39,17 +42,31 @@
       ;; TODO?: make locations work
       (eprintf "error: ~a\n" msg)
       (result:empty))
-    (define (handle-result loc result)
-      (printf "result: ~v\n" result)  ;FIXME
-      result)
+    (define (handle loc res)
+      ;; print what got bound
+      (match res
+        [(Expr e)
+          ;; TODO: debug spew
+          (printf "~v\n" (eval (expr-compile e resolve-env) ns))
+          (result:empty)]
+        [(Result result)
+          (for ([(name info) (env-get @vars (result-resolveExt result))])
+            (match (hash-lookup 'id info)
+              [(Just id)
+                (printf "val ~a = ~v\n" name (eval (hash-get 'id info) ns))]
+              [(None) (printf "something happened to ~a???\n" name)]))
+          result]))
     (define (parse-eval-toks toks)
       ;; TODO: allow either declarations or an expression
-      ((<* (parse-eval resolve-env ns) peof)
+      ((choice
+         ;; FIXME: isn't failing soft properly? failure to backtrack.
+         (<$> Result (<* (parse-eval resolve-env ns) peof))
+         (<$> Expr (<* p-expr peof)))
         parse-env
         (stream-stream (in-list toks))
         print-error
         print-error
-        handle-result))
+        handle))
     (let get-expr ([toks toks]
                    [accum '()]
                    [paren-level 0])

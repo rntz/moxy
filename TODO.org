@@ -6,12 +6,23 @@
 - How can MLOID generate racket code?
 - Implement syntax-extension forms
 - Implement more forms
-- Implement casing, either w/in language or in Racket
-- Allow either decls or exprs in repl
+- Implement pattern-matching, either in MLOID or Racket
 
 * Would be nice
-- Print what happened when decls issued at repl
+- Print info about tags bound at repl.
+- Error handling at repl.
+- Control-C at repl.
 - Generate a well-defined IR instead of Racket.
 - A good way to define plain old infix functions
   (as opposed to infix syntax, which is more general)
 - Parameter for debug-spew, macros that print only if it's #t.
+
+* What needs to go in the base resolve-env?
+- io: puts, print, format
+- strings: string-append
+- arithmetic: + - * / <= < > >= div mod
+- equality: equal?
+- parsing: ???
+
+- hashes, envs, Maybe, Monoid, ExtPoint, booleans
+- the extension points (@envs @exprs @infixes etc)

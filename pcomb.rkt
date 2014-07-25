@@ -199,16 +199,15 @@
     (match ps
       ['() (softk (location str) "empty psum")]
       [(cons x xs)
-        (define (f x xs)
+        (let loop ([x x] [xs xs])
           (x env str hardk
             (lambda (loc msg)
               (match xs
                 ['() (softk loc msg)]
                 [(cons x xs)
                   (restore str savepoint)
-                  (f x xs)]))
-            ok))
-        (f x xs)])))
+                  (loop x xs)]))
+            ok))])))
 
 (define choice (nary psum))
 
