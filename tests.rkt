@@ -15,7 +15,7 @@
   (display "\n"))
 
 (define (doparse p what)
-  (if what (parse-all p builtin-parse-env what)
+  (if what (parse p builtin-parse-env what)
     (parse p builtin-parse-env
       ;; this is an utter hack to work inside the repl
       (begin (read-line) (read-line)))))

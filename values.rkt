@@ -156,6 +156,7 @@
 
 ;; Builtin tags.
 (provide
+  tag:True True True? tag:False False False? truthy? falsey? truthify
   tag:Just Just Just? Just-value
   tag:None None None?
   maybe? maybe from-maybe maybe-bind maybe-map maybe-filter
@@ -163,6 +164,18 @@
   tag:ExtPoint ExtPoint ExtPoint? ExtPoint-name ExtPoint-uid ExtPoint-monoid
   ExtPoint-join ExtPoint-empty)
 
+;; booleans
+(define-tag True)
+(define-tag False)
+(define (falsey? x)
+  (if (not (boolean? x)) (False? x)
+    (error "never call falsey? on a boolean!")))
+(define (truthy? x) (not (falsey? x)))
+(define (truthify x)
+  (if (boolean? x) (if x True False)
+    (error "never call truthify on a non-boolean!")))
+
+;; maybe
 (define-tag Just value)
 (define-tag None)
 

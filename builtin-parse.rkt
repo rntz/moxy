@@ -123,7 +123,7 @@
 (define-form expr:if (subject then else)
   [(sexp) `(if ,(expr-sexp subject) ,(expr-sexp then) ,(expr-sexp else))]
   [(compile env)
-    `(if ,(expr-compile subject env)
+    `(if (truthy? ,(expr-compile subject env))
        ,(expr-compile then env)
        ,(expr-compile else env))])
 

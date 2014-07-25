@@ -13,6 +13,9 @@
 
 (provide make-runtime)
 
+(define-namespace-anchor anchor)
+(define anchor-ns (namespace-anchor->empty-namespace anchor))
+
 (define-syntax (define-names stx)
   (syntax-parse stx
     [(_ env definitions ...)
@@ -46,6 +49,15 @@
 (define (make-runtime)
   (let* ([ns (make-base-namespace)]
          [env (parameterize ([current-namespace ns])
+                ;; Attach existing modules to the namespace so can reuse them.
+                ;; This prevents it re-creating all the tags we've defined,
+                ;; which leads to weird bugs like:
+                ;;
+                ;;     - if N then 0 else 1;
+                ;;     0
+                ;;     - # wtf?
+                (namespace-attach-module anchor-ns "values.rkt")
+                (namespace-attach-module anchor-ns "env.rkt")
                 (namespace-require "values.rkt")
                 (namespace-require "env.rkt")
                 (define-names env-empty
@@ -59,19 +71,27 @@
                          (display "\n"))]
                   [print (lambda (x) (write x) (display "\n"))]
 
+                  [#:tag tag:True True]
+                  [#:tag tag:False False]
+                  [not    (compose truthify falsey?)]
+                  [toBool (compose truthify truthy?)]
+
                   [#:tag tag:Just Just]
                   [#:tag tag:None None]
                   maybe
                   [fromMaybe from-maybe]
                   [maybeMap maybe-map]
-                  [maybeFilter maybe-filter]
+                  [maybeFilter
+                    (lambda (v ok?) (maybe-filter v (compose truthy? ok?)))]
 
                   [#:tag tag:Monoid Monoid]
                   [#:tag tag:ExtPoint ExtPoint]
 
                   [emptyHash hash-empty]
+                  [hashIsEmpty (compose truthify hash-empty?)]
+                  [hashSize hash-count]
                   [hashSingle hash-single]
-                  [hashHas hash-has?]
+                  [hashHas (compose truthify hash-has?)]
                   [hashLookup hash-lookup] [hashGet hash-get]
                   [hashPut hash-put] [hashPutWith hash-put-with]
                   [hashDelete hash-delete]

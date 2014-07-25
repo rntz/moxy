@@ -11,7 +11,7 @@
 (require "core-forms.rkt")
 
 (provide
-  parse parse-all
+  parse
   keyword keysym comma dot semi equals p-end p-optional-end
   lparen rparen lbrace rbrace lbrack rbrack
   parens braces brackets
@@ -22,8 +22,8 @@
   p-decl p-decls
   parse-eval parse-eval-one)
 
-(define (parse parser env what)
-  (parser
+(define (parse parser env what [whole #t])
+  ((if whole (<* parser peof) parser)
     env
     (stream-stream
       (cond
@@ -33,9 +33,6 @@
     (lambda (loc msg) (error 'parse "hard error at pos ~a: ~a" loc msg))
     (lambda (loc msg) (error 'parse "soft error at pos ~a: ~a" loc msg))
     (lambda (_ r) r)))
-
-(define (parse-all parser env what)
-  (parse (<* parser peof) env what))
 
 
 ;; Utility thingies

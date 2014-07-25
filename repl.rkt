@@ -12,6 +12,9 @@
 (require "builtin-parse.rkt")
 (require "runtime.rkt")
 
+(define (show x) (call-with-output-string
+                   (lambda (p) (print x p 1))))
+
 (define-tag FoundSemi rev-toks after)
 (define-tag NeedMore accum paren-level)
 (define-tag UnbalancedParens)
@@ -47,7 +50,9 @@
       (match res
         [(Expr e)
           ;; TODO: debug spew
-          (printf "~v\n" (eval (expr-compile e resolve-env) ns))
+          (define code (expr-compile e resolve-env))
+          (eprintf " ** compiled: ~a **\n" (show code)) ;FIXME
+          (printf "~a\n" (show (eval code ns)))
           (result:empty)]
         [(Result result)
           (for ([(name info) (env-get @vars (result-resolveExt result))])
