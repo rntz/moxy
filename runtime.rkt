@@ -32,12 +32,12 @@
         [x:id #'(define-name [x x] env)]
         [(name:id value)
           #`(begin
-              (namespace-set-variable-value! 'name value)
+              (namespace-set-variable-value! 'name value #t)
               (env-join env (env-single @vars (@vars-var 'name 'name))))]
         [(#:tag tag-id:id ctor-id:id)
           #`(begin
-              (namespace-set-variable-value! 'tag-id tag-id)
-              (namespace-set-variable-value! 'ctor-id ctor-id)
+              (namespace-set-variable-value! 'tag-id tag-id #t)
+              (namespace-set-variable-value! 'ctor-id ctor-id #t)
               (env-join env (env-single @vars
                               (@vars-ctor
                                 (tag-name tag-id)
