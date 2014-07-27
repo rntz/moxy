@@ -12,7 +12,6 @@
 * Would be nice
 - Some way to do renaming/qualified imports
 - Enforce lowercase variables, Capitalized Constructors?
-- Print info about tags bound at repl.
 - Error handling at repl.
 - Control-C at repl.
 - Generate a well-defined IR instead of Racket.

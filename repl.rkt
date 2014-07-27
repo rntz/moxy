@@ -34,6 +34,21 @@
 (define-tag Result result)
 (define-tag Expr expr)
 
+(define (repl-display-@vars vars ns)
+  (for ([(name info) vars])
+    (match (hash-get 'style info (lambda () #f))
+      ['var (void)]
+      ['ctor
+        (printf "tag ~a" name)
+        (match (@var-tag-params info)
+          [(Just params)
+            (printf "(~a)\n" (string-join (map symbol->string params) ", "))]
+          [_ (printf "\n")])]
+      [_ (printf "Oh my, what have you done to ~a?!\n" name)])
+    (if (hash-has? 'id info)
+      (printf "val ~a = ~a\n" name (show (eval (@var-id info) ns)))
+      (printf "I don't even know what value ~a has!\n" name))))
+
 (define (repl [hack #t])
   (when hack
     (read-line)) ;; crude hack to make this work inside the racket repl
@@ -52,14 +67,12 @@
           ;; TODO: debug spew
           (define code (expr-compile e resolve-env))
           (eprintf " ** compiled: ~a **\n" (show code)) ;FIXME
-          (printf "~a\n" (show (eval code ns)))
+          (define value (eval code ns))
+          (unless (void? value)
+            (printf "~a\n" (show value)))
           (result:empty)]
         [(Result result)
-          (for ([(name info) (env-get @vars (result-resolveExt result))])
-            (match (hash-lookup 'id info)
-              [(Just id)
-                (printf "val ~a = ~v\n" name (eval (hash-get 'id info) ns))]
-              [(None) (printf "something happened to ~a???\n" name)]))
+          (repl-display-@vars (env-get @vars (result-resolveExt result)) ns)
           result]))
     (define (parse-eval-toks toks)
       ;; TODO: allow either declarations or an expression
