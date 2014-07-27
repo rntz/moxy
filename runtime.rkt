@@ -63,7 +63,9 @@
                 (define-names env-empty
                   + - / *
                   [== equal?]
-                  ;; TODO: string-append
+                  ;; TODO?: make these operators compare generically
+                  < <= > >=
+                  ;; TODO: string-append, string comparison
 
                   format
                   [say (lambda (fmt . args)
@@ -86,6 +88,9 @@
 
                   [#:tag tag:Monoid Monoid]
                   [#:tag tag:ExtPoint ExtPoint]
+
+                  ;; TODO: a module containing the extension points, parser
+                  ;; combinators, etcetera
 
                   [emptyHash hash-empty]
                   [hashIsEmpty (compose truthify hash-empty?)]
