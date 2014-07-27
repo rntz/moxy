@@ -21,6 +21,7 @@
   (as opposed to infix syntax, which is more general)
 - Symbol prefix functions?
 - Parameter for debug-spew, macros that print only if it's #t.
+- Infix operators made infix by the in-language prelude rather than built-in.
 
 * What functions need to be built-in?
 - io: say, print, format
