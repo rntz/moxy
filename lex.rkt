@@ -9,7 +9,6 @@
 
 ;; Representing tokens
 (provide
-  tag:TEOF TEOF TEOF?
   tag:TLPAREN TLPAREN TLPAREN? tag:TRPAREN TRPAREN TRPAREN?
   tag:TLBRACK TLBRACK TLBRACK? tag:TRBRACK TRBRACK TRBRACK?
   tag:TLBRACE TLBRACE TLBRACE? tag:TRBRACE TRBRACE TRBRACE?
@@ -18,7 +17,6 @@
   tag:TNUM TNUM TNUM? TNUM-value
   tag:TSTR TSTR TSTR? TSTR-value)
 
-(define-tag TEOF)
 (define-tag TLPAREN) (define-tag TRPAREN)
 (define-tag TLBRACK) (define-tag TRBRACK)
 (define-tag TLBRACE) (define-tag TRBRACE)
@@ -37,7 +35,7 @@
 
 (define (tokenize-with-position port)
   (let ([next (yak-lex port)])
-    (if (TEOF? next) empty-stream
+    (if (eof-object? next) empty-stream
       (stream-cons next (tokenize-with-position port)))))
 
 (define (dump port)
@@ -49,7 +47,7 @@
     [(:+ whitespace) (return-without-pos (yak-lex input-port))]
     [comment (return-without-pos (yak-lex input-port))]
     ;; Simple cases
-    [(eof) (return-without-pos TEOF)]
+    [(eof) (return-without-pos eof)]
     ["(" TLPAREN]   [")" TRPAREN]
     ["[" TLBRACK] ["]" TRBRACK]
     ["{" TLBRACE]   ["}" TRBRACE]
