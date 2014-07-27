@@ -8,7 +8,7 @@
 
 (provide
   string-stream stream-stream
-  return fail pmap1 pmap2 lift1 lift2 seq list* lift
+  return fail pmap1 pmap2 lift1 lift2 seq seq* lift
   >>= <* *> <$>
   try ask local
   psum choice pzero peof
@@ -158,7 +158,7 @@
 ;; ((lift2 f) a b) == (pmap2 f a b)
 
 (define (seq ps) (foldr (lift2 cons) (return '()) ps))
-(define list* (nary seq))
+(define seq* (nary seq))
 (define (<$> f . ks) (pmap1 (unary f) (seq ks)))
 (define (lift f) (partial <$> f))
 

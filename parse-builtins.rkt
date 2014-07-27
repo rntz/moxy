@@ -79,7 +79,7 @@
 
 
 ;; -- exprs --
-(provide expr:lambda expr:let expr:if)
+(provide expr:lambda expr:let expr:if expr:case)
 
 (define @expr:parens (record [parser (<* p-expr rparen)]))
 
@@ -132,12 +132,38 @@
                     (*> (keyword "then") p-expr)
                     (*> (keyword "else") p-expr))]))
 
+;; (case Expr [(Pat, Expr)])
+(define-form expr:case (subject branches)
+  [(sexp) `(case ,subject ,@branches)]
+  [subject-id (gensym 'case-subject)]
+  [(compile env)
+    `(let ([,subject-id ,(expr-compile subject env)])
+       ,(foldr
+          (lambda (branch on-failure)
+            (match-let ([`(,pat ,expr) branch])
+              (pat-compile pat env subject-id
+                (expr-compile expr (env-join env (pat-resolveExt pat)))
+                on-failure)))
+          ;; TODO: error message with source position info.
+          `(error "Non-exhaustive patterns in case!")
+          branches))])
+
+(define @expr:case
+  ;; TODO: shouldn't we be parsing the subject at a certain precedence?
+  ;; consider e.g. (case (case x ...) ...)
+  (record [parser (<$> expr:case
+                    p-expr
+                    (<* (many (*> (keysym "|")
+                                  (seq* p-pat (*> (keysym "->") p-expr))))
+                        p-optional-end))]))
+
 (define builtin-@exprs
   (hash
-    TLPAREN     @expr:parens
-    (TSYM "\\") @expr:lambda
-    (TID "let") @expr:let
-    (TID "if")  @expr:if
+    TLPAREN      @expr:parens
+    (TSYM "\\")  @expr:lambda
+    (TID "let")  @expr:let
+    (TID "if")   @expr:if
+    (TID "case") @expr:case
     ))
 
 

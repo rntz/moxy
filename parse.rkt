@@ -19,6 +19,7 @@
   listish
   ;; TODO: p-pat
   p-expr p-expr-at p-prefix-expr-at p-infix-expr
+  p-pat p-pat-at p-prefix-pat-at p-infix-pat
   p-decl p-decls
   parse-eval parse-eval-one)
 
