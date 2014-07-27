@@ -63,12 +63,6 @@
                 (namespace-require "values.rkt")
                 (namespace-require "env.rkt")
                 (define-names env-empty
-                  + - * /
-                  [== equal?]
-
-                  [add +] [sub -] [mul *] [divide /] ;FIXME: hack
-                  ;; TODO?: make these operators compare generically
-                  < <= > >=
                   ;; TODO: string-append, string comparison
 
                   format

@@ -2,6 +2,7 @@
 - Make up a name for the language
 - Implement pattern-matching, either in MLOID or Racket
 - Infix patterns
+  - Constructor patterns
 - Modules and imports
 - Implement more forms
 - Expose parser-combinators to MLOID
@@ -18,13 +19,13 @@
 - Generate a well-defined IR instead of Racket.
 - A good way to define plain old infix functions
   (as opposed to infix syntax, which is more general)
-- A good way to define symbolic prefix functions.
+- Symbol prefix functions?
 - Parameter for debug-spew, macros that print only if it's #t.
 
-* What needs to go in the base resolve-env?
+* What functions need to be built-in?
 - io: say, print, format
 - strings: string-append
-- arithmetic: + - * / <= < > >= div mod
+- arithmetic: + - * / <= < > >= quo rem
 - equality: equal?
 - parsing: ???
 

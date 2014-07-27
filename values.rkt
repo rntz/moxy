@@ -156,6 +156,8 @@
 
 ;; Builtin tags.
 (provide
+  tag:L L L?
+  tag:R R R?
   tag:True True True? tag:False False False? truthy? falsey? truthify
   tag:Just Just Just? Just-value
   tag:None None None?
@@ -163,6 +165,10 @@
   tag:Monoid Monoid Monoid? Monoid-join Monoid-empty
   tag:ExtPoint ExtPoint ExtPoint? ExtPoint-name ExtPoint-uid ExtPoint-monoid
   ExtPoint-join ExtPoint-empty)
+
+;; directions. built-in for associativity purposes.
+(define-tag L)
+(define-tag R)
 
 ;; booleans
 (define-tag True)

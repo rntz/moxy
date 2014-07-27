@@ -6,6 +6,7 @@
 (require "lex.rkt")
 (require "pcomb.rkt")
 (require "parse.rkt")
+(require "core-forms.rkt")
 
 ;; Utilities
 (define p-params (listish p-id))
@@ -168,29 +169,6 @@
 
 
 ;; -- infixes --
-;; Precedence levels, taken from Haskell & modified slightly (not all of these
-;; operators are actually in our language, but they could be):
-;;
-;;   infixR 0 ;
-;;   infixR 1 $
-;;   infixR 2 >> >>=
-;;   infixL 3 <|>
-;;   infixR 3 || &&& ***
-;;   infixL 4 <$> <*> *> <*
-;;   infixR 4 &&
-;;   infix  5 == /= <= < >= >
-;;   infixR 6 : ++
-;;   infixL 7 + -
-;;   infixL 8 * /
-;;   infixR 9 ^
-;;   infixR 10 .
-;;   infixL 11 function application f(x,y,z)
-;;
-;; "IT GOES TO ELEVEN"
-;;
-;; TODO: a way to handle nonassociative infix operators (e.g. "a <= b <= c"
-;; should result in a parse error)
-
 (provide expr:call expr:seq)
 
 ;; (call Expr [Expr])
@@ -214,12 +192,64 @@
     [precedence 0]
     [(parser first-expr) (<$> (partial expr:seq first-expr) (p-expr-at 0))]))
 
+;; infix operators
+;; associativity must be Left or Right.
+(define-form @infix:oper (assoc precedence function)
+  [(parser left-arg)
+    (<$>
+      (lambda (right-arg) (expr:call (expr:lit function)
+                                (list left-arg right-arg)))
+      (p-expr-at (match assoc
+                   [(L) (+ precedence 1)]
+                   [(R) precedence])))])
+
+;; Precedence levels, taken from Haskell & modified slightly (not all of these
+;; operators are actually in our language, but they could be):
+;;
+;;   infixR 0 ;
+;;   infixR 1 $
+;;   infixR 2 >> >>=
+;;   infixL 3 <|>
+;;   infixR 3 || &&& ***
+;;   infixL 4 <$> <*> *> <*
+;;   infixR 4 &&
+;;   infix  5 == /= <= < >= >
+;;   infixR 6 : ++
+;;   infixL 7 + -
+;;   infixL 8 * /
+;;   infixR 9 ^
+;;   infixR 10 .
+;;   infixL 11 function application f(x,y,z)
+;;
+;; "IT GOES TO ELEVEN"
+;;
+;; TODO: nonassociative infix operators (e.g. "a <= b <= c" should result in a
+;; parse error)
+;;
+;; TODO: Backticks to make `infix` operators.
+;; TODO: string append operator.
+;; TODO: prefix-ifying an infix operator / slicing syntax.
+
 (define builtin-@infixes
   (hash
     TLPAREN    @infix:call
     (TSYM ";") @infix:seq
-    ;; TODO: arithmetic, (in)equalities, $, ||, &&, function composition
+
+    ;; TODO: ||, &&, function composition, exponentiation, parser-combinators
     ;; elm-style "|>" operator?
+
+    ;; TODO: make (in)equality operators nonassociative
+    ;; TODO: generic inequality operators
+    (TSYM "==") (@infix:oper L 5 (compose truthify equal?))
+    (TSYM "<")  (@infix:oper L 5 (compose truthify <))
+    (TSYM ">")  (@infix:oper L 5 (compose truthify >))
+    (TSYM "<=") (@infix:oper L 5 (compose truthify <=))
+    (TSYM ">=") (@infix:oper L 5 (compose truthify >=))
+
+    (TSYM "+")  (@infix:oper L 7 +)
+    (TSYM "-")  (@infix:oper L 7 -)
+    (TSYM "*")  (@infix:oper L 8 *)
+    (TSYM "/")  (@infix:oper L 8 /)
     ))
 
 
