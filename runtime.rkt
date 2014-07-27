@@ -71,7 +71,7 @@
 
                   format
                   [say (lambda (fmt . args)
-                         (printf fmt args)
+                         (apply printf fmt args)
                          (display "\n"))]
                   [print (lambda (x) (write x) (display "\n"))]
 
