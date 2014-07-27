@@ -255,7 +255,7 @@
 
 ;; -- pats --
 ;; TODO: expose these in parse env
-(provide pat:one pat:zero pat:let pat:ann pat:vector)
+(provide pat:one pat:zero pat:let pat:vector)
 
 (define-form pat:one () ;; "underscore" pattern, _, succeeds binding nothing
   [resolveExt env-empty]
@@ -273,6 +273,27 @@
   [(compile env subject on-success on-failure)
     `(let ((,id ,(expr-compile expr env))) ,on-success)])
 
+(define-form pat:vector (elems)
+  [resolveExt (env-join* (map pat-resolveExt elems))]
+  [(compile env subject on-success on-failure)
+    (let loop ([i 0] [env env])
+      (if (>= i (vector-length elems)) on-success
+        (let ([tmp (gensym 'tmp)]
+              [elem (vector-ref elems i)])
+          `(let ([,tmp (vector-ref ,subject ',i)])
+             ,(pat-compile elem tmp
+                (loop (+ i 1) (env-join env (pat-resolveExt elem)))
+                on-failure)))))])
+
+;; TODO: pat:and, pat:or, pat:guard
+
+(define builtin-@pats (hash))
+
+
+;; -- infix patterns --
+(provide pat:ann)
+
+;; (ann name:Symbol args:[Pat])
 (define-form pat:ann (name args)
   [args-pat (pat:vector args)]
   [resolveExt (pat-resolveExt args-pat)]
@@ -290,21 +311,17 @@
            ,(pat-compile args-pat env tmp on-success on-failure))
          ,on-failure))])
 
-(define-form pat:vector (elems)
-  [resolveExt (env-join* (map pat-resolveExt elems))]
-  [(compile env subject on-success on-failure)
-    (let loop ([i 0] [env env])
-      (if (>= i (vector-length elems)) on-success
-        (let ([tmp (gensym 'tmp)]
-              [elem (vector-ref elems i)])
-          `(let ([,tmp (vector-ref ,subject ',i)])
-             ,(pat-compile elem tmp
-                (loop (+ i 1) (env-join env (pat-resolveExt elem)))
-                on-failure)))))])
+(define @infix-pat:ann
+  (record
+    [precedence 11]
+    ;; crap! the tag-name has to be a name, not an arbitrary pattern!
+    [(parser tag-name)
+      (error "unimplemented")           ;FIXME
+      ]))
 
-;; TODO: pat:and, pat:or, pat:guard
-
-(define builtin-@pats (hash))
+(define builtin-@infix-pats
+  (hash
+    TLPAREN @infix-pat:ann))
 
 
 ;; -- tops & their results --
@@ -330,9 +347,10 @@
 
 (define builtin-parse-env
   (hash
+    @decls builtin-@decls
     @exprs builtin-@exprs
     @infixes builtin-@infixes
-    @decls builtin-@decls
     @pats builtin-@pats
+    @infix-pats builtin-@infix-pats
     @tops builtin-@tops))
 

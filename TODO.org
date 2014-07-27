@@ -1,6 +1,6 @@
 * Need to do
+- Identifier-level syntax (see design.org)
 - Make up a name for the language
-- Implement pattern-matching, either in MLOID or Racket
 - Infix patterns
   - Constructor patterns
 - Modules and imports

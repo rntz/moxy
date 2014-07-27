@@ -1,0 +1,12 @@
+* Identifier-level syntax
+
+Things like module access "SomeModule.Foo.bar" or constructor patterns
+"Foo.Cons(a,b)" are effectively identifier-level syntax. That is, there are
+parts of them that are not allowed to be arbitrary expressions/patterns. In
+"A.b", A must be an identifier standing for a module, and b must be an
+identifier. In "Foo.Cons(a,b)", Foo.Cons must be a reference to a tag; we cannot
+say "2(x,y)" or "(Foo.Cons|_)(a,b)"!
+
+So we have this strange phenomenon of infix operators whose left-side-argument
+is required to be one of a very small number of forms (identifiers,
+module-qualified identifiers - anything else?). How do we implement this?

@@ -127,6 +127,7 @@
   ;; TODO: rename to @infix-exprs
   @infixes @infixes-join @infixes-empty @infix-precedence @infix-parser
   @pats @pats-join @pats-empty @pat-parser
+  ;; TODO: unify @infix-exprs & @infix-pats somehow?
   @infix-pats @infix-pats-join @infix-pats-empty
   @infix-pat-precedence @infix-pat-parser
   @decls @decls-join @decls-empty @decl-parser
