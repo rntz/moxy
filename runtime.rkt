@@ -76,6 +76,9 @@
                   [not    (compose truthify falsey?)]
                   [toBool (compose truthify truthy?)]
 
+                  [#:tag tag:L L]
+                  [#:tag tag:R R]
+
                   [#:tag tag:Just Just]
                   [#:tag tag:None None]
                   maybe
