@@ -43,7 +43,9 @@
                                 (tag-name tag-id)
                                 ctor-id
                                 tag-id
-                                (tag-arity tag-id)))))])]))
+                                (match (tag-arity tag-id)
+                                  [0 None]
+                                  [n (Just n)])))))])]))
 
 ;; Returns (values resolve-env namespace)
 (define (make-runtime)

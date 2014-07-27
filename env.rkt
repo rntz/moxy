@@ -172,7 +172,7 @@
 (provide
   @vars @vars-join @vars-empty
   @var:var @var:ctor @vars-var @vars-ctor
-  @var-style @var-id @var-tag-id @var-tag-arity
+  @var-style @var-id @var-tag-id @var-tag-params
   )
 
 ;; maps var names to hashes of info about them.
@@ -182,19 +182,19 @@
 ;;
 ;; Hash keys for ctors:
 ;; - tag-id: The IR id for the tag for this ctor.
-;; - tag-arity: Arity of ctor.
+;; - tag-params: (Maybe [Symbol]). The parameters for the ctor, if any.
 (define-ExtPoint @vars hash-union (hash))
 
 ;; TODO: should this go here or in builtin-parse.rkt?
 (define-form @var:var (name id) [style 'var])
-(define-form @var:ctor (name id tag-id tag-arity) [style 'ctor])
+(define-form @var:ctor (name id tag-id tag-params) [style 'ctor])
 
 (define (@vars-var name id) (hash name (@var:var name id)))
-(define (@vars-ctor name id tag-id tag-arity)
-  (hash name (@var:ctor name id tag-id tag-arity)))
+(define (@vars-ctor name id tag-id tag-params)
+  (hash name (@var:ctor name id tag-id tag-params)))
 
 (define-accessors @var
-  style id tag-id tag-arity)
+  style id tag-id tag-params)
 
 
 ;; Builtin parts of speech.

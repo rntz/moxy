@@ -58,7 +58,7 @@
   [(sexp) `(tag ,name ,params)]
   [id (gensym (format "ctor:~a" name))]
   [tag-id (gensym (format "tag:~a" name))]
-  [info (@var:ctor name id tag-id (maybe params 0 length))]
+  [info (@var:ctor name id tag-id params)]
   [resolveExt (env-single @vars (hash name info))]
   [(compile env)
     `((,tag-id (new-tag ',name ',(from-maybe params '())))
@@ -233,7 +233,6 @@
            [ctor-id (@var-id info)]
            [tag-id (hash-get 'tag-id info
                      (lambda () (error 'pat:ann "~v is not a ctor" name)))]
-           [tag-arity (hash-get 'tag-arity info)]
            [tmp (gensym 'tmp)])
       `(if (ann-isa? ,tag-id ,subject)
          ;; match each pat in args against (ann-args subject)
