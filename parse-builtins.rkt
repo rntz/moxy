@@ -199,7 +199,7 @@
 
 ;; -- pats --
 ;; TODO: expose these in parse env
-(provide pat:one pat:zero pat:let pat:var pat:ann pat:vector)
+(provide pat:one pat:zero pat:let pat:ann pat:vector)
 
 (define-form pat:one () ;; "underscore" pattern, _, succeeds binding nothing
   [resolveExt env-empty]
@@ -216,12 +216,6 @@
   [resolveExt (env-single @vars (@vars-var name id))]
   [(compile env subject on-success on-failure)
     `(let ((,id ,(expr-compile expr env))) ,on-success)])
-
-(define-form pat:var (name)
-  [id (gensym name)]
-  [resolveExt (env-single @vars (@vars-var name id))]
-  [(compile env subject on-success on-failure)
-    `(let ([,id ,subject]) ,on-success)])
 
 (define-form pat:ann (name args)
   [args-pat (pat:vector args)]
@@ -252,7 +246,7 @@
                 (loop (+ i 1) (env-join env (pat-resolveExt elem)))
                 on-failure)))))])
 
-;; TODO: pat:and, pat:or, pat:lit, pat:guard
+;; TODO: pat:and, pat:or, pat:guard
 
 (define builtin-@pats (hash))
 

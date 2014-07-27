@@ -105,6 +105,7 @@
   (let* ([bindings (cdr (syntax->list stx))]
          [names (map (lambda (b) (syntax-parse b
                               [(name:id value) #'name]
+                              ;; TODO: must have at least one body expr
                               [((name:id param:id ...) body ...) #'name]))
                   bindings)]
          [exprs (map (lambda (b) (syntax-parse b
@@ -123,8 +124,11 @@
 
 (provide
   @exprs @exprs-join @exprs-empty @expr-parser
+  ;; TODO: rename to @infix-exprs
   @infixes @infixes-join @infixes-empty @infix-precedence @infix-parser
   @pats @pats-join @pats-empty @pat-parser
+  @infix-pats @infix-pats-join @infix-pats-empty
+  @infix-pat-precedence @infix-pat-parser
   @decls @decls-join @decls-empty @decl-parser
   @tops @tops-join @tops-empty @top-parse-eval)
 
@@ -149,6 +153,12 @@
 (define-ExtPoint @pats hash-union (hash))
 (define-accessors @pat
   parser) ;; Parser Pat
+
+(define-ExtPoint @infix-pats hash-union (hash))
+(define-accessors @infix-pat
+  precedence               ;; Int
+  ;; parser : Expr -> Parser Expr, see @infix-parser above for explanation
+  (parser left-pat))
 
 ;; Maps tokens to (@decl)s.
 (define-ExtPoint @decls hash-union (hash))
@@ -185,7 +195,7 @@
 ;; - tag-params: (Maybe [Symbol]). The parameters for the ctor, if any.
 (define-ExtPoint @vars hash-union (hash))
 
-;; TODO: should this go here or in builtin-parse.rkt?
+;; TODO: should this go here or in parse-builtins.rkt?
 (define-form @var:var (name id) [style 'var])
 (define-form @var:ctor (name id tag-id tag-params) [style 'ctor])
 

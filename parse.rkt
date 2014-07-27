@@ -63,26 +63,11 @@
 (define (listish p) (begin-sep-end-by p comma))
 
 
-;; Problem: precedence not taken into account. "let" does not have same
-;; precedence as function application. Is this a real problem?
+;; Parses an expression at a given precedence (i.e. the longest expression that
+;; contains no operators of looser precedence).
 ;;
-;; i.e. some extensions shouldn't be applicable in head position:
-;;
-;;    let x = 2 in x(1,2,3)
-;;
-;; should never parse as "(let x = 2 in x)(1,2,3)". I think this will never
-;; happen in practice due to greedy-ness, but it's worrying.
-(define p-from-@exprs
-  (>>=
-    ask                                ; grab the extensible parsing environment
-    (lambda (parse-env)
-      ;; Grab a token and look it up in @exprs. Fail soft if it's absent.
-      (try-one-maybe
-        (lambda (t) (hash-lookup t (env-get @exprs parse-env)))))
-    ;; Run the parser we found in @exprs!
-    (lambda (ext) (@expr-parser ext))))
-
-;; Parses an expression.
+;; Note on precedence: Larger precedences bind tighter than smaller, and
+;; right-associative binds tighter than left-associative.
 (define (p-expr-at prec)
   (>>= (p-prefix-expr-at prec)
     (lambda (e) (p-infix-expr prec e))))
@@ -96,8 +81,22 @@
     ;; extensions from this?
     (<$> expr:var p-id)))
 
-;; Note on infix precedence: Larger precedences bind tighter than smaller, and
-;; right-associative binds tighter than left-associative.
+;; Problem: precedence not taken into account. "let" does not have same
+;; precedence as function application. Is this a real problem?
+;;
+;; i.e. some extensions shouldn't be applicable in head position:
+;;
+;;    let x = 2 in x(1,2,3)
+;;
+;; should never parse as "(let x = 2 in x)(1,2,3)". I think this will never
+;; happen in practice due to greedy-ness, but it's worrying.
+(define p-from-@exprs
+  (>>= ask                             ; grab the extensible parsing environment
+    (lambda (parse-env)
+      ;; Grab a token and look it up in @exprs. Fail soft if it's absent.
+      (try-one-maybe (lambda (t) (hash-lookup t (env-get @exprs parse-env)))))
+    ;; Run the parser we found in @exprs!
+    @expr-parser))
 
 ;; Tries to parse an infix continuation for `left-expr' of precedence at least
 ;; `prec' (i.e. binding at least as tightly as `prec').
@@ -125,6 +124,42 @@
       (lambda (x) (p-infix-expr prec x)))))
 
 (define p-expr (p-expr-at 0))
+
+;; Parses a pattern at a given precedence.
+(define (p-pat-at prec)
+  (>>= (p-prefix-pat-at prec)
+    (lambda (e) (p-infix-pat prec e))))
+
+(define (p-prefix-pat-at prec)
+  (choice
+    (<$> pat:lit (choice p-str p-num))
+    p-from-@pats
+    ;; TODO: underscore behaves specially?
+    (<$> pat:var p-id)))
+
+(define p-from-@pats
+  (>>= ask                             ; grab the extensible parsing environment
+    (lambda (parse-env)
+      ;; Grab a token and look it up in @pats. Fail soft if it's absent.
+      (try-one-maybe (lambda (t) (hash-lookup t (env-get @pats parse-env)))))
+    ;; Run the parser we found in @pats!
+    @pat-parser))
+
+(define (p-infix-pat prec left-pat)
+  (option left-pat
+    (>>= ask
+      (lambda (parse-env)
+        (try-one-maybe
+          ;; Look for an infix pattern associated with token `t' whose
+          ;; precedence is at least `prec'.
+          (lambda (t) (maybe-filter
+                   (hash-lookup t (env-get @infix-pats parse-env))
+                   (lambda (x) (<= prec (@infix-pat-precedence x)))))))
+      (lambda (ext) (@infix-pat-parser ext left-pat))
+      ;; Try to keep parsing more operations afterward.
+      (lambda (x) (p-infix-pat prec x)))))
+
+(define p-pat (p-pat-at 0))
 
 (define p-decl
   (>>= ask
@@ -177,7 +212,7 @@
       (@top-parse-eval ext resolve-env ns))))
 
 
-;; This has to go here rather than builtin-parse.rkt since we use it in
+;; This has to go here rather than parse-builtins.rkt since we use it in
 ;; parse-eval-one to handle regular decls in top-level position.
 (define (@top:@decl decl)
   (record [parse-eval (parse-eval-decl (@decl-parser decl))]))

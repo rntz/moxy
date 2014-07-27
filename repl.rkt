@@ -9,7 +9,7 @@
 (require "lex.rkt")
 (require "pcomb.rkt")
 (require "parse.rkt")
-(require "builtin-parse.rkt")
+(require "parse-builtins.rkt")
 (require "runtime.rkt")
 
 (define (show x) (call-with-output-string
