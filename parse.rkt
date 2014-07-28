@@ -136,7 +136,15 @@
     (<$> pat:lit (choice p-str p-num))
     p-from-@pats
     ;; TODO: underscore behaves specially?
-    (<$> pat:var p-id)))
+    ;; TODO: this ann-matching behavior shouldn't have to be hard-coded in! :(
+    (<$>
+      (lambda (name maybe-params)
+        (match maybe-params
+          [(Just params) (pat:ann name params)]
+          [(None) (pat:var name)]))
+      p-id
+      ;; the eta is necessary to avoid circularity
+      (option-maybe (eta (parens (listish p-pat)))))))
 
 (define p-from-@pats
   (>>= ask                             ; grab the extensible parsing environment

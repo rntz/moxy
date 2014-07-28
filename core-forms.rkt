@@ -7,7 +7,7 @@
 ;; The part-of-speech forms that the parser uses natively, without any
 ;; extensions (even built-in ones).
 
-(provide expr:var expr:lit pat:lit pat:var)
+(provide expr:var expr:lit pat:lit pat:var pat:vector pat:ann)
 
 ;; - exprs -
 (define-form expr:var (name)
@@ -36,3 +36,35 @@
     `(if (equal? ,subject ',value)
        ,on-success
        ,on-failure)])
+
+;; TODO: pat:vector, pat:ann shouldn't have to be core forms :(
+(define-form pat:vector (elems)
+  [resolveExt (env-join* (map pat-resolveExt elems))]
+  [(compile env subject on-success on-failure)
+    (let ([elems (list->vector elems)])
+      (let loop ([i 0] [env env])
+        (if (>= i (vector-length elems)) on-success
+          (let ([tmp (gensym 'tmp:vector-elem)]
+                [elem (vector-ref elems i)])
+            `(let ([,tmp (vector-ref ,subject ',i)])
+               ,(pat-compile elem env tmp
+                  (loop (+ i 1) (env-join env (pat-resolveExt elem)))
+                  on-failure))))))])
+
+;; (ann name:Symbol params:[Pat])
+(define-form pat:ann (name params)
+  [params-pat (pat:vector params)]
+  [resolveExt (pat-resolveExt params-pat)]
+  [(compile env subject on-success on-failure)
+    ;; TODO: useful error handling.
+    (let* ([info (hash-get name (env-get @vars env)
+                   (lambda () (error 'pat:ann "unbound ctor ~v" name)))]
+           [ctor-id (@var-id info)]
+           [tag-id (hash-get 'tag-id info
+                     (lambda () (error 'pat:ann "~v is not a ctor" name)))]
+           [tmp (gensym 'tmp)])
+      `(if (ann-isa? ,tag-id ,subject)
+         ;; match each pat in params against (ann-args subject)
+         (let ((,tmp (ann-args ,subject)))
+           ,(pat-compile params-pat env tmp on-success on-failure))
+         ,on-failure))])
