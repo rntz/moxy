@@ -69,7 +69,9 @@
   ;; Might want to loosen number definition.
   ;; Currently rejects: ".0" "1." "-.0" etc.
   ;; Note that "-12.-3" lexes as: (-12 .- 3)
-  [number (:seq (:or "" (char-set "+-"))
+  ;; TODO: maybe use "~" for negation?
+  ;; maybe leave negation up to language as a prefix operator?
+  [number (:seq ;(:or "" (char-set "+-"))
                 nat
                 (:or "" (:seq "." nat)))])
 
