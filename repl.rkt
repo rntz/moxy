@@ -12,9 +12,6 @@
 (require "parse-builtins.rkt")
 (require "runtime.rkt")
 
-(define (show x) (call-with-output-string
-                   (lambda (p) (print x p 1))))
-
 (define-tag FoundSemi rev-toks after)
 (define-tag NeedMore accum paren-level)
 (define-tag UnbalancedParens)
@@ -66,8 +63,9 @@
       ;; print what got bound
       (match res
         [(Expr e)
+          (eprintf " ** AST: ~a\n" (show (expr-sexp e))) ;FIXME
           (define code (expr-compile e resolve-env))
-          (eprintf " ** compiled: ~a **\n" (show code)) ;FIXME
+          (eprintf " ** IR: ~a\n" (show code)) ;FIXME
           (define value (eval code ns))
           (unless (void? value)
             (printf "~a\n" (show value)))

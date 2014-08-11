@@ -247,11 +247,12 @@
 (define ((parse-eval-decl decl-parser) resolve-env ns)
   (>>= decl-parser
     (lambda (decl)
+      (eprintf " ** AST: ~a\n" (show (decl-sexp decl))) ;FIXME
       (define code
         `(begin
            ,@(for/list ([id-code (decl-compile decl resolve-env)])
                `(define ,@id-code))))
-      (eprintf "-- EVAL: ~v --\n" code) ;FIXME
+      (eprintf " ** IR: ~a\n" (show code)) ;FIXME
       (eval code ns)
       (return (result:decl decl)))))
 

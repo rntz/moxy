@@ -7,7 +7,9 @@
 ;; The part-of-speech forms that the parser uses natively, without any
 ;; extensions (even built-in ones).
 
-(provide expr:var expr:lit pat:lit pat:var pat:vector pat:ann)
+(provide
+  expr:var expr:lit expr:racket
+  pat:lit pat:var pat:vector pat:ann)
 
 ;; - exprs -
 (define-form expr:var (name)
@@ -22,8 +24,13 @@
   [(sexp) (if (or (string? value) (number? value)) value (list 'quote value))]
   [(compile env) (list 'quote value)])
 
+(define-form expr:racket (code)
+  [(sexp) `(racket ,code)]
+  [(compile env) code])
+
 ;; - pats -
 (define-form pat:var (name)
+  [(sexp) name]
   [id (gensym name)]
   [resolveExt (env-single @vars (@vars-var name id))]
   [idents (list id)]
@@ -41,6 +48,7 @@
 
 ;; TODO: pat:vector, pat:ann shouldn't have to be core forms :(
 (define-form pat:vector (elems)
+  [(sexp) `(vector ,@(map pat-sexp elems))]
   [resolveExt (env-join* (map pat-resolveExt elems))]
   [idents (append* (map pat-idents elems))]
   [(compile env subject on-success on-failure)
@@ -63,6 +71,7 @@
 
 ;; (ann name:Symbol params:[Pat])
 (define-form pat:ann (name params)
+  [(sexp) `(,name ,@(map pat-sexp params))]
   [arity (length params)]
   [params-pat (pat:vector params)]
   [resolveExt (pat-resolveExt params-pat)]

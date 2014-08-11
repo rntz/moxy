@@ -12,6 +12,9 @@
 (define p-var-ids (listish p-var-id))
 (define p-params (listish p-pat))
 
+;; TODO: ugh, code for dealing with the messiness surrounding casing on things
+;; is all over the place. refactor it and have "one case to rule them all".
+
 ;; ir-case: ResolveEnv, IR, IR, [(Pat, Expr)] -> IR
 ;; assumes subject, on-failure are small
 (define (ir-case env subject on-failure branches)
@@ -45,7 +48,7 @@
                         `(vector ,@(pat-idents pat))
                         `(error 'decl:val
                            "In ~v: pattern did not match value: ~v"
-                           (sexp) rhs-tmp)))
+                           ',(sexp) ,rhs-tmp)))
         ,@(for/list ([(id i) (in-indexed (pat-idents pat))])
             `(,id (vector-ref ,vector-tmp ',i)))))])
 
@@ -63,7 +66,9 @@
                             `(,(map pat-sexp params) ,(expr-sexp body)))))]
   [id (gensym name)]
   [resolveExt (env-single @vars (@vars-var name id))]
-  [func-expr (expr:case-lambda branches)]
+  [func-expr (expr:case-lambda
+               branches
+               (expr:racket `(error "Non-exhaustive cases in fun!")))]
   [(compile env)
     (let ([inner-env (env-join env resolveExt)])
       `((,id ,(expr-compile func-expr inner-env))))])
@@ -128,10 +133,14 @@
 
 (define @expr:parens (record [parser (<* p-expr rparen)]))
 
-;; (case-lambda branches:[Branch])
+;; (case-lambda branches:[Branch] on-failure:Expr)
 ;; where Branch = (params:[Pat], body:Expr)
-(define-form expr:case-lambda (branches)
-  [(sexp) `(case-lambda ,@branches)]
+(define-form expr:case-lambda (branches on-failure)
+  [(sexp) `(case-lambda
+             ,(for/list ([b branches])
+                (match-let ([`(,pats ,body) b])
+                  `(,(map pat-sexp pats) ,(expr-sexp body))))
+              ,(expr-sexp on-failure))]
   [(compile env)
     ;; TODO: the code this generates is horrifically inefficient
     (let* ([arg-id (gensym 'arg)]
@@ -139,30 +148,40 @@
       `(lambda ,arg-id
          (let ([,vector-id (list->vector ,arg-id)])
            ,(ir-case env vector-id
-              ;; TODO: this will also be the error that you get when calling a
-              ;; function with the wrong arity. fix this? (how?)
-              `(error "Non-exhaustive patterns in fun!")
+              ;; TODO: the on-failure expression has no way of knowing whether
+              ;; we failed due to pattern match failure, or wrong arity. fix
+              ;; this? (how?)
+              (expr-compile on-failure env)
               (for/list ([branch branches])
                 (match-let ([`(,params ,body) branch])
                   (list (pat:vector params) body)))))))])
 
 ;; (lambda params:[Symbol] body:Expr)
-(define-form expr:lambda (params expr)
-  ;; TODO: case-lambdas? patterns as parameters?
-  ;; TODO: check for duplicate names in params
-  [(sexp) `(lambda ,params ,(expr-sexp expr))]
-  [(compile env)
-    (let* ([ids (map gensym params)]
-           [vars (hash-from-keys-values
-                   params
-                   (map @var:var params ids))]
-           [inner-env (env-join env (env-single @vars vars))])
-      `(lambda (,@ids)
-         ,(expr-compile expr inner-env)))])
+;; TODO: remove this
+;; (define-form expr:lambda (params expr)
+;;   ;; TODO: case-lambdas? patterns as parameters?
+;;   ;; TODO: check for duplicate names in params
+;;   [(sexp) `(lambda ,params ,(expr-sexp expr))]
+;;   [(compile env)
+;;     (let* ([ids (map gensym params)]
+;;            [vars (hash-from-keys-values
+;;                    params
+;;                    (map @var:var params ids))]
+;;            [inner-env (env-join env (env-single @vars vars))])
+;;       `(lambda (,@ids)
+;;          ,(expr-compile expr inner-env)))])
 
+;; (lambda params:[Pat] body:Expr)
+;; thin wrapper around case-lambda
+(define (expr:lambda params body)
+  (expr:case-lambda
+    (list (list params body))
+    (expr:racket `(error "lambda parameter pattern did not match"))))
+
+;; for now, lambdas don't get multiple branches, but you can pattern-match.
 (define @expr:lambda
   (record [parser (<$> expr:lambda
-                    (parens p-var-ids)
+                    (parens p-params)
                     (<* p-expr p-optional-end))]))
 
 ;; (let [Decl] Expr)
@@ -196,7 +215,10 @@
 
 ;; (case Expr [(Pat, Expr)])
 (define-form expr:case (subject branches)
-  [(sexp) `(case ,subject ,@branches)]
+  [(sexp) `(case ,(expr-sexp subject)
+             ,@(for/list ([b branches])
+                 (match-let ([`(,pat ,body) b])
+                   `(,(pat-sexp pat) ,(expr-sexp body)))))]
   [subject-id (gensym 'case-subject)]
   [(compile env)
     ;; TODO: check whether (expr-compile subject env) is "small" and, if so,

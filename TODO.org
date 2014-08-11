@@ -8,9 +8,11 @@
     @x = pure x?
 - How can MLOID generate racket code?
 - Implement syntax-extension forms
-- Patterns in more places ("fun", "val", lambdas)
+- Make all functions, lambdas, etc. have statically-determinable arity.
 
 * Would be nice
+- Duplicate-variable checking for patterns (e.g. so (x,x) doesn't behave
+  unexpectedly)
 - Tests! and some way of running them!
 - Some way to do renaming/qualified imports
 - Error handling at repl.

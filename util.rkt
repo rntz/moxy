@@ -1,13 +1,15 @@
 #lang racket
 
 (provide
-  const repr map_ flip partial nary unary
+  const show repr map_ flip partial nary unary
   zip-with zip
   matches? lambda-rec eta
   define-interface
   foldl1 reduce dict-union hash-unions)
 
 (define (const x) (lambda _ x))
+;; FIXME: document the difference between repr and show!
+(define (show x) (call-with-output-string (lambda (p) (print x p 1))))
 (define (repr x) (with-output-to-string (lambda () (write x))))
 
 (define (map_ f . xs) (apply map f xs) (void))
