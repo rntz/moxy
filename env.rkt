@@ -234,13 +234,58 @@
 (define-accessors decl
   (sexp)
   resolveExt                            ; ResolveEnv
-  (compile resolve-env))                ; ResolveEnv -> [(Id, IR)]
+
+  ;; The rest of our interface would ideally be:
+  ;;
+  ;;   idents: [Id]
+  ;;   compile: ResolveEnv -> IR
+  ;;
+  ;; where `idents' is a list of the identifiers bound, and (compile env)
+  ;; returns code which evaluates to a "tuple" of the values each identifier
+  ;; should have. Practically, however, this requires either (a) allocating a
+  ;; tuple or (b) using multiple-return-values. I'd like to avoid (a) because it
+  ;; sucks and (b) because it's very racket-specific (if we designed our own IR
+  ;; it would be difficult to duplicate - MRV is hard to implement efficiently).
+  ;;
+  ;; Also it makes it slightly harder to define mutually recursive functions.
+  ;;
+  ;; So instead we do this:
+  ;;
+  ;;   compile: ResolveEnv -> [(Id, IR)]
+  ;;
+  ;; Returns a list of identifier-IR pairs, (id code). `code' is IR that
+  ;; evaluates to what `id' should be bound to. Each `id' is in the scope of
+  ;; every `code', but the `id's are defined in the order given (a la letrec).
+  (compile resolve-env))
 
 (define-accessors pat
   (sexp)
-  resolveExt
-  ;; Not sure of the best way to present this interface.
-  ;; ResolveEnv, IR, IR, IR -> IR
+  ;; can patterns really modify our resolve environment in arbitrary ways?
+  ;;
+  ;; relatedly: how do I know what identifiers a pattern binds (say I need to
+  ;; use it in a val decl, say)?
+  resolveExt                            ; ResolveEnv
+
+  ;; The rest of our interface would ideally be something like:
+  ;;
+  ;;   idents: [Id]
+  ;;   compile: ResolveEnv, IR -> IR
+  ;;
+  ;; Where `idents' is a list of identifiers bound, and (compile env subject)
+  ;; returns code that matches against `subject' and evaluates to either (Just
+  ;; t) where `t' is a tuple of the values the `idents' should be bound to, or
+  ;; None, indicating pattern-match failure.
+  ;;
+  ;; But this always requires allocating, which sucks. So instead we do this:
+  ;;
+  ;;   idents: [Id]
+  ;;   compile: ResolveEnv, IR, IR, IR -> IR
+  ;;
+  ;; Where (compile env subject on-success on-failure) returns code that matches
+  ;; against `subject', binds the identifiers in `idents' and runs `on-success';
+  ;; on pattern-match failure, it runs `on-failure' (it may have bound none,
+  ;; some, or all of `idents').
+  idents
   (compile resolve-env subject on-success on-failure))
 
 ;; The "result" of parsing a top-level declaration. Not exactly a part of
