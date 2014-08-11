@@ -12,6 +12,7 @@
 - BUG: Check tag arity in pattern-matches
 
 * Would be nice
+- Tests! and some way of running them!
 - Some way to do renaming/qualified imports
 - Error handling at repl.
 - Control-C at repl.
