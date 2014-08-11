@@ -58,16 +58,22 @@
 
 ;; (ann name:Symbol params:[Pat])
 (define-form pat:ann (name params)
+  [arity (length params)]
   [params-pat (pat:vector params)]
   [resolveExt (pat-resolveExt params-pat)]
   [(compile env subject on-success on-failure)
-    ;; TODO: useful error handling.
     (let* ([info (hash-get name (env-get @vars env)
                    (lambda () (error 'pat:ann "unbound ctor ~v" name)))]
            [ctor-id (@var-id info)]
-           [tag-id (hash-get 'tag-id info
+           [tag-id (@var-tag-id info
                      (lambda () (error 'pat:ann "~v is not a ctor" name)))]
+           [tag-arity (@var-tag-arity info)]
            [tmp (gensym 'tmp)])
+      (unless (= arity tag-arity)
+        (error 'pat:ann
+          "Constructor pattern has ~a arguments (had ~a, expected ~a)"
+          (if (< arity tag-arity) "too few" "too many")
+          arity tag-arity))
       `(if (ann-isa? ,tag-id ,subject)
          ;; match each pat in params against (ann-args subject)
          (let ((,tmp (ann-args ,subject)))

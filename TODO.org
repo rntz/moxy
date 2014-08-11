@@ -9,7 +9,6 @@
 - How can MLOID generate racket code?
 - Implement syntax-extension forms
 - Patterns in more places ("fun", "val", lambdas)
-- BUG: Check tag arity in pattern-matches
 
 * Would be nice
 - Tests! and some way of running them!

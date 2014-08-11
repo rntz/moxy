@@ -83,9 +83,9 @@
 (define-syntax (define-accessor stx)
   (syntax-parse stx
     [(_ axor-name:id key:id)
-      #`(define (axor-name self [or-else (lambda () (error 'axor-name
-                                                 "absent field: ~v" 'key))])
-          (hash-get 'key self or-else))]
+      #`(define (axor-name self [or-else #f])
+          (hash-get 'key self (or or-else (lambda () (error 'axor-name
+                                                  "absent field: ~v" 'key)))))]
     [(_ axor-name:id key:id (param:id ...))
       #`(define (axor-name self param ...)
           ((hash-get 'key self (lambda ()
@@ -183,7 +183,7 @@
 (provide
   @vars @vars-join @vars-empty
   @var:var @var:ctor @vars-var @vars-ctor
-  @var-style @var-id @var-tag-id @var-tag-params
+  @var-style @var-id @var-tag-id @var-tag-params @var-tag-arity
   )
 
 ;; maps var names to hashes of info about them.
@@ -206,6 +206,9 @@
 
 (define-accessors @var
   style id tag-id tag-params)
+
+(define (@var-tag-arity v [or-else #f])
+  (maybe (@var-tag-params v) 0 length))
 
 
 ;; Builtin parts of speech.
