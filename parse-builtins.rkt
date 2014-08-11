@@ -260,18 +260,22 @@
 (provide pat:one pat:zero pat:let)
 
 (define-form pat:one () ;; "underscore" pattern, _, succeeds binding nothing
+  [(sexp) '_]
   [resolveExt env-empty]
+  [idents '()]
   [(compile env subject on-success on-failure) on-success])
 
-(define-form pat:zero (names) ;; pattern that always fails, binding names
-  [ids (map gensym names)]
+(define-form pat:zero (names) ;; pattern that always fails, binding `names'
+  [(sexp) `(zero ,@names)]
+  [idents (map gensym names)]
   [resolveExt (env-single @vars (hash-from-keys-values names
-                                  (map @var:var names ids)))]
+                                  (map @var:var names idents)))]
   [(compile env subject on-success on-failure) on-failure])
 
 (define-form pat:let (name expr) ;; always binds name to expr
   [id (gensym name)]
   [resolveExt (env-single @vars (@vars-var name id))]
+  [idents (list id)]
   [(compile env subject on-success on-failure)
     `(let ((,id ,(expr-compile expr env))) ,on-success)])
 
@@ -281,21 +285,10 @@
 
 
 ;; -- infix patterns --
-(provide ;; pat:ann
-  )
-
-;; (define @infix-pat:ann
-;;   (record
-;;     [precedence 11]
-;;     ;; crap! the tag-name has to be a name, not an arbitrary pattern!
-;;     [(parser tag-name)
-;;       (error "unimplemented")           ;FIXME
-;;       ]))
+(provide)
 
 (define builtin-@infix-pats
-  (hash
-    ;; TLPAREN @infix-pat:ann
-    ))
+  (hash))
 
 
 ;; -- tops & their results --

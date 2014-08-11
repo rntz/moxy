@@ -222,8 +222,8 @@
 
 (provide
   expr-compile expr-sexp
-  decl-resolveExt decl-compile decl-sexp
-  pat-resolveExt pat-compile pat-sexp
+  decl-sexp decl-resolveExt decl-compile
+  pat-sexp pat-resolveExt pat-idents pat-compile
   result-resolveExt result-parseExt
   nodule-name nodule-resolveExt nodule-parseExt)
 
@@ -285,7 +285,16 @@
   ;; against `subject', binds the identifiers in `idents' and runs `on-success';
   ;; on pattern-match failure, it runs `on-failure' (it may have bound none,
   ;; some, or all of `idents').
-  idents
+  ;;
+  ;; `subject', `on-success' and `on-failure' may occur many times in the
+  ;; returned code. So they should be small (e.g. literals, identifiers or
+  ;; zero-argument calls to identifiers), and `subject' must be
+  ;; side-effect-less.
+  ;;
+  ;; EDIT: for now I'm letting `on-success' may be large. This shouldn't be a
+  ;; problem except with backtracking patterns (e.g. or-patterns). So once I
+  ;; implement those I'll reconsider this.
+  idents                                ;[Id], represented as a racket list
   (compile resolve-env subject on-success on-failure))
 
 ;; The "result" of parsing a top-level declaration. Not exactly a part of

@@ -26,12 +26,14 @@
 (define-form pat:var (name)
   [id (gensym name)]
   [resolveExt (env-single @vars (@vars-var name id))]
+  [idents (list id)]
   [(compile env subject on-success on-failure)
     `(let ([,id ,subject]) ,on-success)])
 
 (define-form pat:lit (value)
   [(sexp) (if (or (string? value) (number? value)) value (list 'quote value))]
   [resolveExt env-empty]
+  [idents '()]
   [(compile env subject on-success on-failure)
     `(if (equal? ,subject ',value)
        ,on-success
@@ -40,6 +42,7 @@
 ;; TODO: pat:vector, pat:ann shouldn't have to be core forms :(
 (define-form pat:vector (elems)
   [resolveExt (env-join* (map pat-resolveExt elems))]
+  [idents (append* (map pat-idents elems))]
   [(compile env subject on-success on-failure)
     (let ([elems (list->vector elems)])
       (let loop ([i 0] [env env])
@@ -47,6 +50,9 @@
           (let ([tmp (gensym 'tmp:vector-elem)]
                 [elem (vector-ref elems i)])
             `(let ([,tmp (vector-ref ,subject ',i)])
+               ;; TODO: this calls pat-compile with a potentially large
+               ;; on-success expression. but on-success should always be small.
+               ;; how do we fix this? do we even bother?
                ,(pat-compile elem env tmp
                   (loop (+ i 1) (env-join env (pat-resolveExt elem)))
                   on-failure))))))])
@@ -56,6 +62,7 @@
   [arity (length params)]
   [params-pat (pat:vector params)]
   [resolveExt (pat-resolveExt params-pat)]
+  [idents (pat-idents params-pat)]
   [(compile env subject on-success on-failure)
     (let* ([info (hash-get name (env-get @vars env)
                    (lambda () (error 'pat:ann "unbound ctor ~v" name)))]
