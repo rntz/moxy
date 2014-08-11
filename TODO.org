@@ -11,6 +11,8 @@
 - Make all functions, lambdas, etc. have statically-determinable arity.
 
 * Would be nice
+- Optimize pattern-matching forms not to create intermediate vectors unless
+  necessary.
 - Duplicate-variable checking for patterns (e.g. so (x,x) doesn't behave
   unexpectedly)
 - Tests! and some way of running them!
