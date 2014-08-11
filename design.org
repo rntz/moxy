@@ -10,3 +10,69 @@ say "2(x,y)" or "(Foo.Cons|_)(a,b)"!
 So we have this strange phenomenon of infix operators whose left-side-argument
 is required to be one of a very small number of forms (identifiers,
 module-qualified identifiers - anything else?). How do we implement this?
+
+* Tag names in patterns
+An identifier in a pattern can either be a tag/constructor pattern or a variable:
+
+    Nil -> ...     // Nil is a tag
+    Cons(x,xs) ->  // Cons is a tag; x,xs are variable names
+    x ->           // x is a variable name
+
+In SML this is determined by whether the identifier is bound to a constructor.
+In Haskell all constructors are upper-case, so there's no ambiguity.
+
+Currently I've chosen to make all constructors upper-case, but an issue remains:
+Do constructor patterns need to be hard-coded into the parser, or can they be
+added as an extension? I'd prefer if the answer were "no", as they're rather a
+complicated feature. It would be a good proof of the generality/flexibility of
+my approach if they could be added post-hoc to the language.
+
+It's not clear how to structure the parser/extension system such that this is
+possible. How do we let extensions tell us "upper-case identifiers mean this
+thing"? We could:
+
+1. Add an extension point specifically for upper-case identifiers in patterns.
+   This is clearly a special-case hack added for this sole purpose.
+
+2. Relax the requirement that extensions have a unique prefix/infix token that
+   identifies them, and allow them to specify a *parser* instead. Then our
+   extension point monoids would merge parsers using 'psum instead of merging
+   hashtables. This is very general, but has practical problems:
+
+   1. Parsing an expression/pattern etc now has linear overhead in the number of
+      extensions!
+
+   2. Detecting when one extension shadows/is-ambiguous-with another is very
+      difficult. We can *partially* solve this if we separate extensions into a
+      "test parser" and a "continuation parser", the test parser corresponding
+      to what previously was the unique prefix/infix token. Then we run all the
+      test parsers "in parallel" to determine which extensions match, and if
+      more than one does, we know there's an ambiguity. However:
+
+      - This makes us not just linear, but *best case* linear, in the number of
+        extensions. :( This *might* be soluble by using a different
+        representation of parsers (derivative parsing? I dunno.) that handles
+        ambiguity better.
+
+      - We detect ambiguity not when we combine the conflicting extensions, but
+        only when we *use* them in an ambiguous manner. I find this an
+        acceptable drawback.
+
+3. Have every tag declaration itself create a syntax extension that specifically
+   makes *that tag* into a pattern.
+
+   This runs into annoying issues with mutual recursion (if we want to define a
+   tag mutually-recursively with some code that uses it in a pattern, for
+   example).
+
+4. Suck it up and require some unambiguous prefix on constructors (maybe some
+   simple prefix symbol, like ":").
+
+5. Allow all identifiers to have pattern-matchers associated with them in the
+   resolve environment? i.e. generalize the notion of constructor patterns
+   to *all identifiers*; then tag declarations become a simple special-case.
+
+   This is somewhat similar to what Racket does.
+
+I'd be willing to give up on "required upper-case for tags" if it made
+implementing this easier, but it doesn't look like it does.
