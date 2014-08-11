@@ -21,6 +21,8 @@
   [resolveExt (pat-resolveExt pat)]
   [(compile env)
     ;; this is slightly tricky.
+    ;; TODO: optimize the case where `pat' only defines one identifier.
+    ;; in this case, we don't need an intermediate vector.
     (let ((rhs-tmp (gensym 'rhs))
           (vector-tmp (gensym 'vector)))
       `((,rhs-tmp ,(expr-compile expr env))
