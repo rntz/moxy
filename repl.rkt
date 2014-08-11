@@ -26,9 +26,11 @@
       (match tok
         [(? (const (= 0 paren-level)) (TSYM ";"))
           (FoundSemi accum toks)]
-        [(TLPAREN) (find-semi toks (cons tok accum) (+ paren-level 1))]
-        [(TRPAREN) (if (= 0 paren-level) UnbalancedParens
-                     (find-semi toks (cons tok accum) (- paren-level 1)))]
+        [(or (TLPAREN) (TLBRACK) (TLBRACE))
+          (find-semi toks (cons tok accum) (+ paren-level 1))]
+        [(or (TRPAREN) (TRBRACK) (TRBRACE))
+          (if (= 0 paren-level) UnbalancedParens
+            (find-semi toks (cons tok accum) (- paren-level 1)))]
         [_ (find-semi toks (cons tok accum) paren-level)])]))
 
 (define-tag Result result)
