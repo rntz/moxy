@@ -15,16 +15,25 @@
 ;; -- decls --
 (provide decl:val decl:fun decl:rec decl:tag)
 
-;; (val Symbol Expr)
-(define-form decl:val (name expr)
-  [(sexp) `(val ,name ,(expr-sexp expr))]
-  [id (gensym name)]
-  [resolveExt (env-single @vars (@vars-var name id))]
-  [(compile env) `((,id ,(expr-compile expr env)))])
+;; (val Pat Expr)
+(define-form decl:val (pat expr)
+  [(sexp) `(val ,(pat-sexp pat) ,(expr-sexp expr))]
+  [resolveExt (pat-resolveExt pat)]
+  [(compile env)
+    ;; this is slightly tricky.
+    (let ((rhs-tmp (gensym 'rhs))
+          (vector-tmp (gensym 'vector)))
+      `((,rhs-tmp ,(expr-compile expr env))
+        (,vector-tmp ,(pat-compile pat env rhs-tmp
+                        `(vector ,@(pat-idents pat))
+                        `(error 'decl:val
+                           "In ~v: pattern did not match value: ~v"
+                           (sexp) rhs-tmp)))
+        ,@(for/list ([(id i) (in-indexed (pat-idents pat))])
+            `(,id (vector-ref ,vector-tmp ',i)))))])
 
 (define @decl:val
-  ;; TODO: patterns, rather than just identifiers!
-  (record [parser (<$> decl:val p-var-id (*> equals p-expr))]))
+  (record [parser (<$> decl:val p-pat (*> equals p-expr))]))
 
 ;; (fun name:Symbol params:[Symbol] body:Expr)
 ;; TODO: branches, patterns

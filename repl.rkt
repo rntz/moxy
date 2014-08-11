@@ -66,7 +66,6 @@
       ;; print what got bound
       (match res
         [(Expr e)
-          ;; TODO: debug spew
           (define code (expr-compile e resolve-env))
           (eprintf " ** compiled: ~a **\n" (show code)) ;FIXME
           (define value (eval code ns))
@@ -77,9 +76,7 @@
           (repl-display-@vars (env-get @vars (result-resolveExt result)) ns)
           result]))
     (define (parse-eval-toks toks)
-      ;; TODO: allow either declarations or an expression
       ((choice
-         ;; FIXME: isn't failing soft properly? failure to backtrack.
          (<$> Result (<* (parse-eval resolve-env ns) peof))
          (<$> Expr (<* p-expr peof)))
         parse-env

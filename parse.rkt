@@ -250,7 +250,7 @@
         `(begin
            ,@(for/list ([id-code (decl-compile decl resolve-env)])
                `(define ,@id-code))))
-      ;;(eprintf "-- EVAL: ~v --\n" code) ;FIXME
+      (eprintf "-- EVAL: ~v --\n" code) ;FIXME
       (eval code ns)
       (return (result:decl decl)))))
 
