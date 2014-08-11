@@ -15,7 +15,7 @@
   keyword keysym comma dot semi equals p-end p-optional-end
   lparen rparen lbrace rbrace lbrack rbrack
   parens braces brackets
-  p-str p-num p-id
+  p-str p-num p-any-id p-id p-var-id p-caps-id
   listish
   ;; TODO: p-pat
   p-expr p-expr-at p-prefix-expr-at p-infix-expr
@@ -58,7 +58,20 @@
 
 (define p-str (<$> TSTR-value (satisfy TSTR?)))
 (define p-num (<$> TNUM-value (satisfy TNUM?)))
-(define p-id (<$> (compose string->symbol TID-value) (satisfy TID?)))
+(define p-any-id (<$> (compose string->symbol TID-value) (satisfy TID?)))
+
+(define rx-caps-ident #rx"^[A-Z]")
+(define (capsname? s) (regexp-match? rx-caps-ident s))
+(define (varname? s) (not (regexp-match? rx-caps-ident s)))
+
+(define (p-id name ok?)
+  (try-one-maybe
+    (match-lambda [(TID s) #:when (ok? s) (Just (string->symbol s))]
+             [_ None])
+    (lambda (t) (format "expecting ~a, got ~v" name t))))
+
+(define p-var-id (p-id "variable name" varname?))
+(define p-caps-id (p-id "capitalized identifier" capsname?))
 
 ;; A comma-separated-list, except leading and/or trailing commas are allowed.
 (define (listish p) (begin-sep-end-by p comma))
@@ -78,9 +91,14 @@
   (choice
     (<$> expr:lit (choice p-str p-num))
     p-from-@exprs
-    ;; an identifier. TODO: shouldn't we exclude identifiers bound to parse
-    ;; extensions from this?
-    (<$> expr:var p-id)))
+    ;; an identifier.
+    ;;
+    ;; TODO: shouldn't we exclude identifiers which are used to trigger
+    ;; parse-extensions from this?
+    ;;
+    ;; TODO: shouldn't only tag & variable identifiers be allowed, and e.g.
+    ;; module identifiers be disallowed?
+    (<$> expr:var p-any-id)))
 
 ;; Problem: precedence not taken into account. "let" does not have same
 ;; precedence as function application. Is this a real problem?
@@ -136,15 +154,14 @@
     (<$> pat:lit (choice p-str p-num))
     p-from-@pats
     ;; TODO: underscore behaves specially?
-    ;; TODO: this ann-matching behavior shouldn't have to be hard-coded in! :(
+    (<$> pat:var p-var-id)
+    ;; TODO: this tag/ann-matching behavior shouldn't be hard-coded in! :(
+    ;; TODO: tag/ann patterns without parens afterwards, e.g. Nil
     (<$>
-      (lambda (name maybe-params)
-        (match maybe-params
-          [(Just params) (pat:ann name params)]
-          [(None) (pat:var name)]))
-      p-id
+      pat:ann
+      p-caps-id
       ;; the eta is necessary to avoid circularity
-      (option-maybe (eta (parens (listish p-pat)))))))
+      (option '() (eta (parens (listish p-pat)))))))
 
 (define p-from-@pats
   (>>= ask                             ; grab the extensible parsing environment

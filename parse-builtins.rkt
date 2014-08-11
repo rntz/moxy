@@ -9,7 +9,7 @@
 (require "core-forms.rkt")
 
 ;; Utilities
-(define p-params (listish p-id))
+(define p-params (listish p-var-id))
 
 
 ;; -- decls --
@@ -24,7 +24,7 @@
 
 (define @decl:val
   ;; TODO: patterns, rather than just identifiers!
-  (record [parser (<$> decl:val p-id (*> equals p-expr))]))
+  (record [parser (<$> decl:val p-var-id (*> equals p-expr))]))
 
 ;; (fun name:Symbol params:[Symbol] body:Expr)
 ;; TODO: branches, patterns
@@ -37,7 +37,8 @@
       `((,id ,(expr-compile (expr:lambda params expr) inner-env))))])
 
 (define @decl:fun
-  (record [parser (<$> decl:fun p-id (parens p-params) (*> equals p-expr))]))
+  (record [parser
+            (<$> decl:fun p-var-id (parens p-params) (*> equals p-expr))]))
 
 ;; (rec [Decl])
 (define-form decl:rec (decls)
@@ -68,7 +69,8 @@
               [(None) `(make-ann ,tag-id)])))])
 
 (define @decl:tag
-  (record [parser (<$> decl:tag p-id (option-maybe (parens (listish p-id))))]))
+  (record [parser (<$> decl:tag p-caps-id
+                    (option-maybe (parens (listish p-var-id))))]))
 
 (define builtin-@decls
   (hash

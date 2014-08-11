@@ -1,8 +1,7 @@
 * Need to do
-- Identifier-level syntax (see design.org)
+- Identifier-level syntax (see design.org)?
 - Make up a name for the language
 - Infix patterns
-  - Constructor patterns
 - Modules and imports
 - Implement more forms
 - Expose parser-combinators to MLOID
@@ -10,10 +9,10 @@
     @x = pure x?
 - How can MLOID generate racket code?
 - Implement syntax-extension forms
+- BUG: Check tag arity in pattern-matches
 
 * Would be nice
 - Some way to do renaming/qualified imports
-- Enforce lowercase variables, Capitalized Constructors?
 - Error handling at repl.
 - Control-C at repl.
 - Generate a well-defined IR instead of Racket.
@@ -22,6 +21,8 @@
 - Symbol prefix functions?
 - Parameter for debug-spew, macros that print only if it's #t.
 - Infix operators made infix by the in-language prelude rather than built-in.
+- Check that use of parens in tag pattern matches tag declaration?
+- BUG: Disallow module identifiers in expressions?
 
 * What functions need to be built-in?
 - io: say, print, format
