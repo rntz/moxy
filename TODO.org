@@ -22,7 +22,9 @@
 - Parameter for debug-spew, macros that print only if it's #t.
 - Infix operators made infix by the in-language prelude rather than built-in.
 - Check that use of parens in tag pattern matches tag declaration?
-- BUG: Disallow module identifiers in expressions?
+- Disallow module identifiers in expressions?
+- Avoid generating large `on-failure' values in ir-case.
+- *Pretty*-print results of compilation in debug mode
 
 * What functions need to be built-in?
 - io: say, print, format

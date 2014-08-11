@@ -9,7 +9,22 @@
 (require "core-forms.rkt")
 
 ;; Utilities
-(define p-params (listish p-var-id))
+(define p-var-ids (listish p-var-id))
+(define p-params (listish p-pat))
+
+;; ir-case: ResolveEnv, IR, IR, [(Pat, Expr)] -> IR
+;; assumes subject, on-failure are small
+(define (ir-case env subject on-failure branches)
+  (foldr
+    ;; TODO: this calls pat-compile with potentially large `on-failure' code.
+    ;; fix this!
+    (lambda (branch on-failure)
+      (match-let ([`(,pat ,expr) branch])
+        (pat-compile pat env subject
+          (expr-compile expr (env-join env (pat-resolveExt pat)))
+          on-failure)))
+    on-failure
+    branches))
 
 
 ;; -- decls --
@@ -37,19 +52,35 @@
 (define @decl:val
   (record [parser (<$> decl:val p-pat (*> equals p-expr))]))
 
-;; (fun name:Symbol params:[Symbol] body:Expr)
-;; TODO: branches, patterns
-(define-form decl:fun (name params expr)
-  [(sexp) `(fun ,name ,params ,(expr-sexp expr))]
+;; (fun name:Symbol branches:[Branch])
+;; where Branch = (params:[Pat], body:Expr)
+;;
+;; do we require each branch to have the same arity?
+;; eh, let's not.
+(define-form decl:fun (name branches)
+  [(sexp) `(fun ,name ,@(for/list ([b branches])
+                          (match-let ([`(,params ,body) b])
+                            `(,(map pat-sexp params) ,(expr-sexp body)))))]
   [id (gensym name)]
   [resolveExt (env-single @vars (@vars-var name id))]
+  [func-expr (expr:case-lambda branches)]
   [(compile env)
     (let ([inner-env (env-join env resolveExt)])
-      `((,id ,(expr-compile (expr:lambda params expr) inner-env))))])
+      `((,id ,(expr-compile func-expr inner-env))))])
+
+(define p-fun-rest-of-branch (seq* (parens p-params) (*> equals p-expr)))
+(define (p-fun-branch name) (*> bar (expect (TID name)) p-fun-rest-of-branch))
+(define p-fun
+  (>>=
+    (optional bar)
+    (lambda (_) p-var-id)
+    (lambda (name)
+      (<$> (compose (partial decl:fun name) cons)
+        p-fun-rest-of-branch
+        (many (p-fun-branch (symbol->string name)))))))
 
 (define @decl:fun
-  (record [parser
-            (<$> decl:fun p-var-id (parens p-params) (*> equals p-expr))]))
+  (record [parser p-fun]))
 
 ;; (rec [Decl])
 (define-form decl:rec (decls)
@@ -97,8 +128,25 @@
 
 (define @expr:parens (record [parser (<* p-expr rparen)]))
 
+;; (case-lambda branches:[Branch])
+;; where Branch = (params:[Pat], body:Expr)
+(define-form expr:case-lambda (branches)
+  [(sexp) `(case-lambda ,@branches)]
+  [(compile env)
+    ;; TODO: the code this generates is horrifically inefficient
+    (let* ([arg-id (gensym 'arg)]
+           [vector-id (gensym 'arg-vector)])
+      `(lambda ,arg-id
+         (let ([,vector-id (list->vector ,arg-id)])
+           ,(ir-case env vector-id
+              ;; TODO: this will also be the error that you get when calling a
+              ;; function with the wrong arity. fix this? (how?)
+              `(error "Non-exhaustive patterns in fun!")
+              (for/list ([branch branches])
+                (match-let ([`(,params ,body) branch])
+                  (list (pat:vector params) body)))))))])
+
 ;; (lambda params:[Symbol] body:Expr)
-;; TODO: pattern parameters. case-lambdas? rec-lambdas?
 (define-form expr:lambda (params expr)
   ;; TODO: case-lambdas? patterns as parameters?
   ;; TODO: check for duplicate names in params
@@ -114,7 +162,7 @@
 
 (define @expr:lambda
   (record [parser (<$> expr:lambda
-                    (parens p-params)
+                    (parens p-var-ids)
                     (<* p-expr p-optional-end))]))
 
 ;; (let [Decl] Expr)
@@ -151,15 +199,10 @@
   [(sexp) `(case ,subject ,@branches)]
   [subject-id (gensym 'case-subject)]
   [(compile env)
+    ;; TODO: check whether (expr-compile subject env) is "small" and, if so,
+    ;; omit binding it to subject-id.
     `(let ([,subject-id ,(expr-compile subject env)])
-       ,(foldr
-          (lambda (branch on-failure)
-            (match-let ([`(,pat ,expr) branch])
-              (pat-compile pat env subject-id
-                (expr-compile expr (env-join env (pat-resolveExt pat)))
-                on-failure)))
-          ;; TODO: error message with source position info.
-          `(error "Non-exhaustive patterns in case!")
+       ,(ir-case env subject-id `(error "Non-exhaustive patterns in case!")
           branches))])
 
 (define @expr:case
@@ -167,8 +210,7 @@
   ;; consider e.g. (case (case x ...) ...)
   (record [parser (<$> expr:case
                     p-expr
-                    (<* (many (*> (keysym "|")
-                                  (seq* p-pat (*> (keysym "->") p-expr))))
+                    (<* (many (*> bar (seq* p-pat (*> (keysym "->") p-expr))))
                         p-optional-end))]))
 
 (define builtin-@exprs

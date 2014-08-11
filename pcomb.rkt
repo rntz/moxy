@@ -245,6 +245,9 @@
 (define (sep-end-by p sep) (option '() (sep-end-by1 p sep)))
 (define (sep-end-by1 p sep)
   (<$> cons p (option '() (*> sep (eta (sep-end-by p sep))))))
+;; separated and optionally begun by sep.
+(define (begin-sep-by p sep) (*> (optional sep) (sep-by p sep)))
+(define (begin-sep-by1 p sep) (*> (optional sep) (sep-by1 p sep)))
 
 ;; Sequence of `p', separated by `sep', optionally begun and/or ended by `sep'.
 ;; `p' and `sep' better not be inter-ambiguous.

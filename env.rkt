@@ -291,9 +291,9 @@
   ;; zero-argument calls to identifiers), and `subject' must be
   ;; side-effect-less.
   ;;
-  ;; EDIT: for now I'm letting `on-success' may be large. This shouldn't be a
-  ;; problem except with backtracking patterns (e.g. or-patterns). So once I
-  ;; implement those I'll reconsider this.
+  ;; EDIT: for now I'm letting `on-success' be large. This shouldn't be a
+  ;; problem except with patterns that can succeed in multiple ways (e.g.
+  ;; or-patterns). So once I implement those I'll reconsider this.
   idents                                ;[Id], represented as a racket list
   (compile resolve-env subject on-success on-failure))
 

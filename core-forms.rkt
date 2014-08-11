@@ -45,17 +45,21 @@
   [idents (append* (map pat-idents elems))]
   [(compile env subject on-success on-failure)
     (let ([elems (list->vector elems)])
-      (let loop ([i 0] [env env])
-        (if (>= i (vector-length elems)) on-success
-          (let ([tmp (gensym 'tmp:vector-elem)]
-                [elem (vector-ref elems i)])
-            `(let ([,tmp (vector-ref ,subject ',i)])
-               ;; TODO: this calls pat-compile with a potentially large
-               ;; on-success expression. but on-success should always be small.
-               ;; how do we fix this? do we even bother?
-               ,(pat-compile elem env tmp
-                  (loop (+ i 1) (env-join env (pat-resolveExt elem)))
-                  on-failure))))))])
+      `(if (and (vector? ,subject)
+                (= (vector-length ,subject) ',(vector-length elems)))
+         ,(let loop ([i 0] [env env])
+            (if (>= i (vector-length elems)) on-success
+              (let ([tmp (gensym 'tmp:vector-elem)]
+                     [elem (vector-ref elems i)])
+                `(let ([,tmp (vector-ref ,subject ',i)])
+                   ;; NOTE: this calls pat-compile with a potentially large
+                   ;; on-success code. but on-success should always be small.
+                   ;; how do we fix this? do we even bother?
+                   ,(pat-compile elem env tmp
+                      (loop (+ i 1) (env-join env (pat-resolveExt elem)))
+                      on-failure)))))
+         ;; not a vector or wrong length
+         ,on-failure))])
 
 ;; (ann name:Symbol params:[Pat])
 (define-form pat:ann (name params)

@@ -12,7 +12,7 @@
 
 (provide
   parse
-  keyword keysym comma dot semi equals p-end p-optional-end
+  keyword keysym comma dot semi equals bar p-end p-optional-end
   lparen rparen lbrace rbrace lbrack rbrack
   parens braces brackets
   p-str p-num p-any-id p-id p-var-id p-caps-id
@@ -44,6 +44,7 @@
 (define dot (keysym "."))
 (define semi (keysym ";"))
 (define equals (keysym "="))
+(define bar (keysym "|"))
 
 (define p-end (keyword "end"))
 (define p-optional-end (optional p-end))
