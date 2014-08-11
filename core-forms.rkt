@@ -23,11 +23,6 @@
   [(compile env) (list 'quote value)])
 
 ;; - pats -
-;;
-;; TODO: pat:var needs to check whether var is bound to a constructor! :(
-;; but I *can't* without seeing the ResolveEnv! :(
-;; can avoid this if we distinguish ctors from vars by case.
-;; or if defining tags changes the parse environment.
 (define-form pat:var (name)
   [id (gensym name)]
   [resolveExt (env-single @vars (@vars-var name id))]
