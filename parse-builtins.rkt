@@ -156,21 +156,6 @@
                 (match-let ([`(,params ,body) branch])
                   (list (pat:vector params) body)))))))])
 
-;; (lambda params:[Symbol] body:Expr)
-;; TODO: remove this
-;; (define-form expr:lambda (params expr)
-;;   ;; TODO: case-lambdas? patterns as parameters?
-;;   ;; TODO: check for duplicate names in params
-;;   [(sexp) `(lambda ,params ,(expr-sexp expr))]
-;;   [(compile env)
-;;     (let* ([ids (map gensym params)]
-;;            [vars (hash-from-keys-values
-;;                    params
-;;                    (map @var:var params ids))]
-;;            [inner-env (env-join env (env-single @vars vars))])
-;;       `(lambda (,@ids)
-;;          ,(expr-compile expr inner-env)))])
-
 ;; (lambda params:[Pat] body:Expr)
 ;; thin wrapper around case-lambda
 (define (expr:lambda params body)
