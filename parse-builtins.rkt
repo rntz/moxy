@@ -64,34 +64,38 @@
 (define @decl:val
   (record [parser (<$> decl:val p-pat (*> equals p-expr))]))
 
-;; (fun name:Symbol branches:[Branch])
+;; (fun name:Symbol arity:Nat branches:[Branch])
 ;; where Branch = (params:[Pat], body:Expr)
-;;
-;; do we require each branch to have the same arity?
-;; eh, let's not.
-(define-form decl:fun (name branches)
+;; where each params-list is of length `arity'
+(define-form decl:fun (name arity branches)
   [(sexp) `(fun ,name ,@(for/list ([b branches])
                           (match-let ([`(,params ,body) b])
                             `(,(map pat-sexp params) ,(expr-sexp body)))))]
   [id (gensym name)]
   [resolveExt (env-single @vars (@vars-var name id))]
-  [func-expr (expr:case-lambda
-               branches
+  [func-expr (expr:case-lambda arity branches
                (expr:racket `(error "Non-exhaustive cases in fun!")))]
   [(compile env)
     (let ([inner-env (env-join env resolveExt)])
       `((,id ,(expr-compile func-expr inner-env))))])
 
-(define p-fun-rest-of-branch (seq* (parens p-params) (*> equals p-expr)))
-(define (p-fun-branch name) (*> bar (expect (TID name)) p-fun-rest-of-branch))
+(define p-fun-clause (seq* p-var-id (parens p-params) (*> equals p-expr)))
 (define p-fun
   (>>=
-    (optional bar)
-    (lambda (_) p-var-id)
-    (lambda (name)
-      (<$> (compose (partial decl:fun name) cons)
-        p-fun-rest-of-branch
-        (many (p-fun-branch (symbol->string name)))))))
+    (begin-sep-by1 p-fun-clause bar)
+    (lambda (clauses)
+      (let/ec escape
+        (match-define `((,name ,params ,_) . ,_) clauses)
+        (define arity (length params))
+        (define case-branches
+          (for/list ([clause clauses])
+            (match-define `(,clause-name ,clause-params ,clause-body) clause)
+            (unless (symbol=? name clause-name)
+              (escape (pfail "fun clauses have varying names")))
+            (unless (= arity (length clause-params))
+              (escape (pfail "fun clauses have varying arity")))
+            (list clause-params clause-body)))
+        (return (decl:fun name arity case-branches))))))
 
 (define @decl:fun
   (record [parser p-fun]))
@@ -142,15 +146,17 @@
 
 (define @expr:parens (record [parser (<* p-expr rparen)]))
 
-;; (case-lambda branches:[Branch] on-failure:Expr)
+;; (case-lambda arity:Nat branches:[Branch] on-failure:Expr)
 ;; where Branch = (params:[Pat], body:Expr)
-(define-form expr:case-lambda (branches on-failure)
+;; where each `params' is of length `arity'
+(define-form expr:case-lambda (arity branches on-failure)
   [(sexp) `(case-lambda
              ,(for/list ([b branches])
                 (match-let ([`(,pats ,body) b])
                   `(,(map pat-sexp pats) ,(expr-sexp body))))
               ,(expr-sexp on-failure))]
   [(compile env)
+    ;; TODO?: check that the arity is accurate?
     ;; TODO: the code this generates is horrifically inefficient
     (let* ([arg-id (gensym 'arg)]
            [vector-id (gensym 'arg-vector)])
@@ -168,7 +174,7 @@
 ;; (lambda params:[Pat] body:Expr)
 ;; thin wrapper around case-lambda
 (define (expr:lambda params body)
-  (expr:case-lambda
+  (expr:case-lambda (length params)
     (list (list params body))
     (expr:racket `(error "lambda parameter pattern did not match"))))
 

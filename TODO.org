@@ -7,7 +7,6 @@
     @x = pure x?
 - How can MLOID generate racket code?
 - Implement syntax-extension forms
-- Make all functions, lambdas, etc. have statically-determinable arity.
 
 * Would be nice
 - Identifier-level syntax (see design.org)?
