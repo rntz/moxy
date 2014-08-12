@@ -31,7 +31,7 @@
 ;; - pats -
 (define-form pat:var (name)
   [(sexp) name]
-  [id (gensym name)]
+  [id (mkid name)]
   [resolveExt (env-single @vars (@vars-var name id))]
   [idents (list id)]
   [(compile env subject on-success on-failure)
@@ -57,7 +57,7 @@
                 (= (vector-length ,subject) ',(vector-length elems)))
          ,(let loop ([i 0] [env env])
             (if (>= i (vector-length elems)) on-success
-              (let ([tmp (gensym 'tmp:vector-elem)]
+              (let ([tmp (mktemp 'vector-elem)]
                      [elem (vector-ref elems i)])
                 `(let ([,tmp (vector-ref ,subject ',i)])
                    ;; NOTE: this calls pat-compile with a potentially large
@@ -83,7 +83,7 @@
            [tag-id (@var-tag-id info
                      (lambda () (error 'pat:ann "~v is not a ctor" name)))]
            [tag-arity (@var-tag-arity info)]
-           [tmp (gensym 'tmp)])
+           [tmp (mktemp 'ann-args)])
       (unless (= arity tag-arity)
         (error 'pat:ann
           "Constructor pattern has ~a arguments (had ~a, expected ~a)"

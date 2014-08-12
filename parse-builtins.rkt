@@ -29,6 +29,29 @@
     on-failure
     branches))
 
+;; ResolveEnv, [IR], IR, [([Pat], Expr)] -> IR
+(define (ir-multicase env subjects on-failure branches)
+  ;; if this foldr were changed to a foldl, we would try the last pattern first
+  ;; instead. so don't do that.
+  (foldr
+    (lambda (branch on-failure)
+      (match-let ([`(,pats ,expr) branch])
+        (let ((fail-id (mktemp 'fail)))
+          `(let ((,fail-id (lambda () ,on-failure)))
+             ,(ir-match-each env (zip pats subjects) expr `(,fail-id))))))
+    on-failure
+    branches))
+
+;; ResolveEnv, [(Pat, IR)], Expr, IR -> IR
+(define (ir-match-each env pat-subjs on-success-expr on-failure-ir)
+  (match pat-subjs
+    ['() (expr-compile on-success-expr env)]
+    [`((,pat ,subj) . ,rest-pat-subjs)
+      (pat-compile pat env subj
+        (ir-match-each (env-join env (pat-resolveExt pat))
+          rest-pat-subjs on-success-expr on-failure-ir)
+        on-failure-ir)]))
+
 
 ;; -- decls --
 (provide decl:val decl:fun decl:rec decl:tag)
@@ -39,7 +62,7 @@
   [resolveExt (pat-resolveExt pat)]
   [(compile env)
     ;; in this case, we don't need an intermediate vector.
-    (let* ([rhs-tmp (gensym 'val-rhs)]
+    (let* ([rhs-tmp (mktemp 'rhs)]
            [on-failure `(error 'decl:val
                           "In ~a: pattern ~a did not match value: ~v"
                           ',(show (sexp))
@@ -48,14 +71,14 @@
       (cons `(,rhs-tmp ,(expr-compile expr env))
         (match (pat-idents pat)
           ['()
-            `((,(gensym 'ignored)
+            `((,(mktemp 'ignored)
                ,(pat-compile pat env rhs-tmp `',(void) on-failure)))]
           [`(,id)
             `((,id ,(pat-compile pat env rhs-tmp id on-failure)))]
           [idents
             ;; in the general case, we need to allocate an intermediate vector
             ;; of results from the pattern-match. :(
-            (let ((vector-tmp (gensym 'vector)))
+            (let ((vector-tmp (mktemp 'vector)))
               `((,vector-tmp ,(pat-compile pat env rhs-tmp `(vector ,@idents)
                                 on-failure))
                 ,@(for/list ([(id i) (in-indexed idents)])
@@ -71,7 +94,7 @@
   [(sexp) `(fun ,name ,@(for/list ([b branches])
                           (match-let ([`(,params ,body) b])
                             `(,(map pat-sexp params) ,(expr-sexp body)))))]
-  [id (gensym name)]
+  [id (mkid name)]
   [resolveExt (env-single @vars (@vars-var name id))]
   [func-expr (expr:case-lambda arity branches
                (expr:racket `(error "Non-exhaustive cases in fun!")))]
@@ -118,8 +141,8 @@
 ;; TODO: require other identifiers be lower-case?
 (define-form decl:tag (name params)
   [(sexp) `(tag ,name ,params)]
-  [id (gensym (format "ctor:~a" name))]
-  [tag-id (gensym (format "tag:~a" name))]
+  [id (mkid "ctor:~a" name)]
+  [tag-id (mkid "tag:~a" name)]
   [info (@var:ctor name id tag-id params)]
   [resolveExt (env-single @vars (hash name info))]
   [(compile env)
@@ -156,20 +179,11 @@
                   `(,(map pat-sexp pats) ,(expr-sexp body))))
               ,(expr-sexp on-failure))]
   [(compile env)
-    ;; TODO?: check that the arity is accurate?
-    ;; TODO: the code this generates is horrifically inefficient
-    (let* ([arg-id (gensym 'arg)]
-           [vector-id (gensym 'arg-vector)])
-      `(lambda ,arg-id
-         (let ([,vector-id (list->vector ,arg-id)])
-           ,(ir-case env vector-id
-              ;; TODO: the on-failure expression has no way of knowing whether
-              ;; we failed due to pattern match failure, or wrong arity. fix
-              ;; this? (how?)
-              (expr-compile on-failure env)
-              (for/list ([branch branches])
-                (match-let ([`(,params ,body) branch])
-                  (list (pat:vector params) body)))))))])
+    ;; TODO?: make gensyms be based on the actual argument names if possible?
+    (let* ([arg-ids (for/list ([i (in-range arity)])
+                      (mktemp "arg:~a" i))])
+      `(lambda ,arg-ids
+         ,(ir-multicase env arg-ids (expr-compile on-failure env) branches)))])
 
 ;; (lambda params:[Pat] body:Expr)
 ;; thin wrapper around case-lambda

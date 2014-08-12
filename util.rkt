@@ -3,6 +3,7 @@
 (provide
   const show repr map_ flip partial nary unary
   zip-with zip
+  mkid mktemp
   matches? lambda-rec eta
   define-interface
   foldl1 reduce dict-union hash-unions)
@@ -33,6 +34,9 @@
   (for/list ([x xs] [y ys]) (f x y)))
 
 (define (zip xs ys) (zip-with list xs ys))
+
+(define (mkid fmt . args) (gensym (apply format (format "~a." fmt) args)))
+(define (mktemp fmt . args) (gensym (apply format (format "_~a." fmt) args)))
 
 
 ;;; Some syntactic help
