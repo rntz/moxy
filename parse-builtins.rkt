@@ -12,22 +12,11 @@
 (define p-var-ids (listish p-var-id))
 (define p-params (listish p-pat))
 
-;; TODO: ugh, code for dealing with the messiness surrounding casing on things
-;; is all over the place. refactor it and have "one case to rule them all".
-
 ;; ir-case: ResolveEnv, IR, IR, [(Pat, Expr)] -> IR
 ;; assumes subject, on-failure are small
 (define (ir-case env subject on-failure branches)
-  (foldr
-    ;; TODO: this calls pat-compile with potentially large `on-failure' code.
-    ;; fix this!
-    (lambda (branch on-failure)
-      (match-let ([`(,pat ,expr) branch])
-        (pat-compile pat env subject
-          (expr-compile expr (env-join env (pat-resolveExt pat)))
-          on-failure)))
-    on-failure
-    branches))
+  (ir-multicase env (list subject) on-failure
+    (map (match-lambda [`(,pat ,expr) `((,pat) ,expr)]) branches)))
 
 ;; ResolveEnv, [IR], IR, [([Pat], Expr)] -> IR
 (define (ir-multicase env subjects on-failure branches)
