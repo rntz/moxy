@@ -7,6 +7,7 @@
     @x = pure x?
 - How can MLOID generate racket code?
 - Implement syntax-extension forms
+- Investigate pattern-matching calculi for inspiration
 
 * Would be nice
 - Identifier-level syntax (see design.org)?
