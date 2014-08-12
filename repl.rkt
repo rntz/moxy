@@ -4,6 +4,7 @@
 (require racket/stream)
 
 (require "util.rkt")
+(require "debug.rkt")
 (require "values.rkt")
 (require "env.rkt")
 (require "lex.rkt")
@@ -63,9 +64,9 @@
       ;; print what got bound
       (match res
         [(Expr e)
-          (eprintf " ** AST: ~a\n" (show (expr-sexp e))) ;FIXME
+          (debugf-pretty " ** AST:" (expr-sexp e))
           (define code (expr-compile e resolve-env))
-          (eprintf " ** IR: ~a\n" (show code)) ;FIXME
+          (debugf-pretty " ** IR:" code)
           (define value (eval code ns))
           (unless (void? value)
             (printf "~a\n" (show value)))
@@ -107,4 +108,7 @@
                       paren-level))]))))
 
 (module+ main
+  ;; enable line counting because it makes pretty printing better
+  (port-count-lines! (current-error-port))
+  (port-count-lines! (current-output-port))
   (repl #f))

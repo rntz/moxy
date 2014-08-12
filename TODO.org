@@ -23,7 +23,6 @@
 - A good way to define plain old infix functions
   (as opposed to infix syntax, which is more general)
 - Symbol prefix functions?
-- Parameter for debug-spew, macros that print only if it's #t.
 - Infix operators made infix by the in-language prelude rather than built-in.
 - Check that use of parens in tag pattern matches tag declaration?
 - Disallow module identifiers in expressions?

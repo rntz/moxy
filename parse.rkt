@@ -4,6 +4,7 @@
 (require (only-in parser-tools/lex position-token-token))
 
 (require "util.rkt")
+(require "debug.rkt")
 (require "values.rkt")
 (require "env.rkt")
 (require "lex.rkt")
@@ -247,12 +248,12 @@
 (define ((parse-eval-decl decl-parser) resolve-env ns)
   (>>= decl-parser
     (lambda (decl)
-      (eprintf " ** AST: ~a\n" (show (decl-sexp decl))) ;FIXME
+      (debugf-pretty " ** AST:" (decl-sexp decl))
       (define code
         `(begin
            ,@(for/list ([id-code (decl-compile decl resolve-env)])
                `(define ,@id-code))))
-      (eprintf " ** IR: ~a\n" (show code)) ;FIXME
+      (debugf-pretty " ** IR:" code)
       (eval code ns)
       (return (result:decl decl)))))
 

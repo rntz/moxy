@@ -8,7 +8,15 @@
   foldl1 reduce dict-union hash-unions)
 
 (define (const x) (lambda _ x))
-;; FIXME: document the difference between repr and show!
+
+;; (show x) shows x in human-readable form, with some nice abbreviations.
+;; (repr x) shows x in (read)-able form, without any nice abbreviations.
+;;
+;;  (repr '(quote foo)) --> "(quote foo)"
+;;  (show '(quote foo)) --> "'foo"
+;;
+;; Neither of them unnecessarily prefixes things with quotes, as print does by
+;; default. Neither will drop quotes around strings, as display does.
 (define (show x) (call-with-output-string (lambda (p) (print x p 1))))
 (define (repr x) (with-output-to-string (lambda () (write x))))
 
