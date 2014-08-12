@@ -1,5 +1,4 @@
 * Need to do
-- Identifier-level syntax (see design.org)?
 - Make up a name for the language
 - Modules and imports
 - Implement more forms
@@ -11,6 +10,7 @@
 - Make all functions, lambdas, etc. have statically-determinable arity.
 
 * Would be nice
+- Identifier-level syntax (see design.org)?
 - Optimize pattern-matching forms not to create intermediate vectors unless
   necessary.
 - Duplicate-variable checking for patterns (e.g. so (x,x) doesn't behave
