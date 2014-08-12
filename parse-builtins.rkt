@@ -38,19 +38,28 @@
   [(sexp) `(val ,(pat-sexp pat) ,(expr-sexp expr))]
   [resolveExt (pat-resolveExt pat)]
   [(compile env)
-    ;; this is slightly tricky.
-    ;; TODO: optimize the case where `pat' only defines one identifier.
     ;; in this case, we don't need an intermediate vector.
-    (let ((rhs-tmp (gensym 'rhs))
-          (vector-tmp (gensym 'vector)))
-      `((,rhs-tmp ,(expr-compile expr env))
-        (,vector-tmp ,(pat-compile pat env rhs-tmp
-                        `(vector ,@(pat-idents pat))
-                        `(error 'decl:val
-                           "In ~v: pattern did not match value: ~v"
-                           ',(sexp) ,rhs-tmp)))
-        ,@(for/list ([(id i) (in-indexed (pat-idents pat))])
-            `(,id (vector-ref ,vector-tmp ',i)))))])
+    (let* ([rhs-tmp (gensym 'val-rhs)]
+           [on-failure `(error 'decl:val
+                          "In ~a: pattern ~a did not match value: ~v"
+                          ',(show (sexp))
+                          ',(show (pat-sexp pat))
+                          ,rhs-tmp)])
+      (cons `(,rhs-tmp ,(expr-compile expr env))
+        (match (pat-idents pat)
+          ['()
+            `((,(gensym 'ignored)
+               ,(pat-compile pat env rhs-tmp `',(void) on-failure)))]
+          [`(,id)
+            `((,id ,(pat-compile pat env rhs-tmp id on-failure)))]
+          [idents
+            ;; in the general case, we need to allocate an intermediate vector
+            ;; of results from the pattern-match. :(
+            (let ((vector-tmp (gensym 'vector)))
+              `((,vector-tmp ,(pat-compile pat env rhs-tmp `(vector ,@idents)
+                                on-failure))
+                ,@(for/list ([(id i) (in-indexed idents)])
+                    `(,id (vector-ref ,vector-tmp ',i)))))])))])
 
 (define @decl:val
   (record [parser (<$> decl:val p-pat (*> equals p-expr))]))
