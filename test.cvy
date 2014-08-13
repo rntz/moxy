@@ -2,9 +2,9 @@
 val zero = 0;
 val four = 2 + 2;
 val id = \(x) x;
-fun id_new(x) = x;
 val namewithnumb3rs = "yup";
 
+fun id1(x) = x;
 fun double(x) = x + x;
 fun quadruple(x) = double(double(x));
 
@@ -19,7 +19,12 @@ rec fun even(0) = True
 and fun odd(0) = False
       | odd(n) = not(even(n-1));
 
+val zero1 = if True then 0 else 1;
+val one1 = if False then 0 else 1;
+
 # computation tests
 val 0 = id(0);
 val 8 = quadruple(2);
+val 0 = zero;
+val 1 = one;
 val 120 = fac(5);
