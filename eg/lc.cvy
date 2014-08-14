@@ -1,0 +1,21 @@
+# Copyright (c) Paul R. Tagliamonte <tag@pault.ag> under the terms
+# of the MIT/Expat license.
+
+
+val eval = \(x) x(\(x) x + 1)(0);
+
+val succ = \(n) \(f) \(x) f(n(f)(x));
+val plus = \(m, n) n(succ)(m);
+
+val expo = \(m, n) n(m);
+
+val zero = \(f) \(x) x;
+val one = \(f) \(x) f(x);
+
+val pred = \(n) \(f) \(x) n(\(g) \(h) h(g, f))(\(y) x)(\(z) z);
+val sub = \(m, n) m(pred)(n)();
+
+val two = plus(one, one);
+val three = plus(two, one);
+
+say(eval(expo(three, three)));
