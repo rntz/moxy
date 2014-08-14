@@ -1,6 +1,7 @@
 # Copyright (c) Paul R. Tagliamonte <tag@pault.ag> under the terms
 # of the MIT/Expat license.
 
+# Modified by Michael Arntzenius <daekharel@gmail.com>
 
 val eval = \(x) x(\(x) x + 1)(0);
 
@@ -18,4 +19,4 @@ val sub = \(m, n) m(pred)(n)();
 val two = plus(one, one);
 val three = plus(two, one);
 
-say(eval(expo(three, three)));
+say("~a", eval(expo(three, three)));
