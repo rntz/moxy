@@ -1,0 +1,134 @@
+Sketch of the syntax for a simple unityped functionalish language.
+Curly-brace-style.
+Newline-sensitive but not otherwise whitespace-sensitive.
+
+TODO: change ";" for listish rest-separator to ", &"?
+
+* Modules
+import io;
+import io/submodule;
+import io as foo;
+import io.*;
+import io.(foo, bar, baz);
+
+io.print("foo");
+# alternate punctuation: :.';!$/|
+
+* Visibility
+*** Option 1: Everything is public
+*** Option 2: Name-based visibility
+- Things starting with underscores are private?
+- Things starting with lowercase/uppercase are private?
+
+* Function calls, parentheses
+foo(x, y, z)  # (foo x y z)
+foo(x, y; z)  # (apply foo x y z)
+
+* Definitions
+> fn foo(x, y) {
+>   io.show(x);
+>   let z = y + y;
+>   z
+> }
+
+* Let-binding
+> let x = 2;
+> let x, y = 2, 3;
+> let f = \x {x};
+
+* Infix
+* Data
+** Lists and tuples
+[1, 2, 3]
+[x; xs]
+[x, y; ys]
+
+** Records and dicts
+@{x = 2, "foo" + "bar": 23}
+
+# @{:x 2, :y [], "foo": bar}
+
+** Data types
+Nil
+Cons(x,xs)
+
+* Pattern matching
+> case foo {
+>   [] { 0 }
+>   [x;xs] { x + loop xs }
+> }
+
+* Lambdas
+> \x {x}            # (lambda (x) x)
+> \x,y {x}          # (lambda (x y) x)
+> \x, y; z {z}      # (lambda (x y . z) z)
+
+** Stx 2
+> |x| {x}           # (lambda (x) x)
+> |x, y| {x}        # (lambda (x y) x)
+> |x, y; z| {z}     # (lambda (x y . z) z)
+
+** Auto-argument functions
+Maybe just do Pyret-style "partial application"?
+
+# other punctuation: ~!#$%^&*_\:
+
+map(lst, \x {x + 2})
+
+> ${_ + 2}
+> ${_1 + _2}
+
+# Problem: need to be able to syntactically distinguish from ordinary lambdas or
+# things get yucky.
+{_ + 2}         # (lambda (x) (+ x 2))
+{_1 + _2}       # (lambda (x y) (+ x y))
+{_&}            # (lambda y y)
+
+# eg. map {_ + 2} [1 2 3]
+
+# map (|x| x + 2) [1 2 3]
+# map @{_1 + _2} [1 2 3]
+# map @[_1 & _&]
+
+# map (@x. x + 2) lst
+# map(@[x] x + 2, lst)
+
+# delimeters: () [] {} || <> \. ::
+
+# dimensions of change:
+# - delimeters used for lambda
+# - binding of lambda (tight or loose)
+# - function calls: f(x,y) vs (f x y), or even f(x y)
+
+* Notes to self
+- Cannot have () as delimeters for lists/tuples.
+  b/c: Consider singleton lists.
+
+{:a foo, :b bar}
+
+# Clojure syntax:
+# (fn name? [params*] exprs*)
+# (fn name? ([params*] exprs*)+)
+
+{_ + 2}
+{x. x}  {x: x}  {(x) x}
+
+{x. xs}
+
+(\x. x
+| x y. x + y)
+
+{rev
+| [] xs. xs
+| [y;ys] xs. rev }
+
+let rev [] xs = xs
+    rev [y;ys] xs = rev ys [y;xs]
+in rev
+
+
+(\x []. x | x [y;ys]. y)
+(foo: {x []} x | {x [y;ys]} y)
+
+{{x []} x
+ {x [y;ys]} [x;ys]}

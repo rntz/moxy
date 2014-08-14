@@ -1,0 +1,150 @@
+# Sketch of the syntax for a simple unityped functional language.
+# Not whitespace-sensitive, for simplicity's sake.
+
+* Modules
+import io
+import io/submodule
+import io as foo
+import io:*
+import io:{foo bar baz}
+
+io:print "foo"
+# alternate punctuation: .';!$/|
+
+* Function calls, parentheses
+* Definitions
+* Let-binding
+# optional end to replace parens, like case
+> let x = 2
+>   , y = 3
+> in x + y
+
+> let x = 2, y = 3 in x + y end
+
+> let x = 2
+> let y = 3
+> in x + y
+
+> where foo = blah
+>   and bar = baz
+> end
+
+# let is recursive by default, with shadowing disallowed.
+# cycles in graph that don't go through a lambda are errors.
+> let fac 0 = 1
+>     fac n = n * fac (n-1)
+> in fac 10
+
+* Infix
+* Data
+** Lists
+** Tuples
+** Records
+** Data types
+* Pattern matching
+# -> optional end instead of parens <- I like this one
+> case foo
+>  | []. 0
+>  | [x;ys]. x
+> end
+
+> (case l
+>   | []. 0
+>   | [x]. x
+>   | [x & ys]. x + sum ys)
+
+> (case foo, bar
+>   {[] _} 0
+>   {[x;y] _} x)
+
+> (case foo
+>   {[]. 0}
+>   {[x;xs]. x})
+
+> case foo {
+>   []. 0
+> | [x;ys]. x
+> }
+
+# Rust-inspired
+> case foo {
+>   [] { 0 }
+>   [x;ys] { x }
+> }
+
+* Lambdas
+** Stx 1
+# Need to not overlap with other syntax.
+ |x y| x        # (lambda (x y) x)
+ |& y| y        # (lambda y y)
+ f@|x| x        # (letrec ((f (lambda (x) x))) f)
+
+** Stx 2
+{[x y] x}       # (lambda (x y) x)
+{[& y] y}       # (lambda y y)
+{f[x] f}        # (letrec ((f (lambda (x) f))) f)
+
+** Stx 3
+{x y. x}        # (lambda (x y) x)
+{& y. y}        # (lambda y y)
+
+{case
+ [x []] x
+ [x (y:ys)] x:y
+ }
+
+** Auto-argument functions
+# Problem: need to be able to syntactically distinguish from ordinary lambdas or
+# things get yucky.
+{_ + 2}         # (lambda (x) (+ x 2))
+{_1 + _2}       # (lambda (x y) (+ x y))
+{_&}            # (lambda y y)
+
+# eg. map {_ + 2} [1 2 3]
+
+# map (|x| x + 2) [1 2 3]
+# map @{_1 + _2} [1 2 3]
+# map @[_1 & _&]
+
+# map (@x. x + 2) lst
+# map(@[x] x + 2, lst)
+
+# delimeters: () [] {} || <> \. ::
+
+# dimensions of change:
+# - delimeters used for lambda
+# - binding of lambda (tight or loose)
+# - function calls: f(x,y) vs (f x y), or even f(x y)
+
+* Notes to self
+- Cannot have () as delimeters for lists/tuples.
+  b/c: Consider singleton lists.
+
+{:a foo, :b bar}
+
+# Clojure syntax:
+# (fn name? [params*] exprs*)
+# (fn name? ([params*] exprs*)+)
+
+{_ + 2}
+{x. x}  {x: x}  {(x) x}
+
+{x. xs}
+
+> (\x. x
+> | x y. x + y)
+
+{rev
+| [] xs. xs
+| [y;ys] xs. rev }
+
+let rev [] xs = xs
+    rev [y;ys] xs = rev ys [y;xs]
+in rev
+
+
+(\x []. x | x [y;ys]. y)
+(foo: {x []} x | {x [y;ys]} y)
+
+{{x []} x
+ {x [y;ys]} [x;ys]}

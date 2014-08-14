@@ -1,0 +1,26 @@
+expr ::= expr "(" args ")"
+       | "(" expr ")"
+       | ident
+       | number | string
+       | list
+       | "\" params block
+       | block
+       | "if" expr block ("else if" expr block)* ("else" block)?
+       | "case" expr "{" (pat block)* "}"
+
+args ::= (expr ",")* expr? (";" expr)?
+params ::= (ident ",")* ident? (";" ident)?
+
+block ::= "{" decls "}"
+
+decls ::= let-decl ";" decls
+        | fun-decl decls
+        | expr ";" decls
+        | expr?
+
+let-decl ::= "let" pat "=" expr
+
+fun-decl ::= "fn" ident "(" params ")" block
+
+-- TODO: more patterns
+pat ::= ident

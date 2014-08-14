@@ -1,0 +1,17 @@
+EXP ::= (let ID EXP EXP)
+      | (fn (ID ...) EXP)
+      | (ap EXP EXP)
+      | (id ID)
+      | (if EXP EXP EXP)
+      | (lit LIT)
+
+LIT ::= NUM | STRING | BOOL | UNIT
+BOOL ::= true | false
+UNIT ::= ()
+
+## Builtins ##
++ - * /
+str
+
+make-tag : unit -> tag
+tag : tag -> 
