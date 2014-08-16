@@ -29,6 +29,7 @@
     env
     (stream-stream
       (cond
+        [(stream? what) what]
         [(port? what) (tokenize what)]
         [(string? what) (call-with-input-string what tokenize)]
         [#t (error 'parse "don't know how to parse: ~v" what)]))
@@ -248,12 +249,12 @@
 (define ((parse-eval-decl decl-parser) resolve-env ns)
   (>>= decl-parser
     (lambda (decl)
-      (debugf-pretty " ** AST:" (decl-sexp decl))
+      (debugf-pretty " * AST:" (decl-sexp decl))
       (define code
         `(begin
            ,@(for/list ([id-code (decl-compile decl resolve-env)])
                `(define ,@id-code))))
-      (debugf-pretty " ** IR:" code)
+      (debugf-pretty " * IR:" code)
       (eval code ns)
       (return (result:decl decl)))))
 

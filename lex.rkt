@@ -30,8 +30,12 @@
 ;; The actual lexing
 (provide tokenize tokenize-with-position dump)
 
-(define (tokenize port)
-  (stream-map position-token-token (tokenize-with-position port)))
+(define (tokenize input)
+  (stream-map position-token-token
+    (tokenize-with-position
+      (if (string? input)
+        (open-input-string input)
+        input))))
 
 (define (tokenize-with-position port)
   (let ([next (yak-lex port)])
@@ -49,7 +53,7 @@
     ;; Simple cases
     [(eof) (return-without-pos eof)]
     ["(" TLPAREN]   [")" TRPAREN]
-    ["[" TLBRACK] ["]" TRBRACK]
+    ["[" TLBRACK]   ["]" TRBRACK]
     ["{" TLBRACE]   ["}" TRBRACE]
     ;; Complex cases
     [ident (TID lexeme)]

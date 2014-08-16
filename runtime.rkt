@@ -3,6 +3,7 @@
 (require (for-syntax syntax/parse))
 (require syntax/parse)
 
+(require "debug.rkt")
 (require "util.rkt")
 (require "values.rkt")
 (require "env.rkt")
@@ -64,6 +65,8 @@
                 (namespace-require "env.rkt")
                 (define-names env-empty
                   ;; TODO: string-append, string comparison
+
+                  [debug toggle-debug!]
 
                   format
                   [say (lambda (fmt . args)

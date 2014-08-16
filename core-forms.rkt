@@ -11,6 +11,9 @@
   expr:var expr:lit expr:racket
   pat:lit pat:var pat:vector pat:ann)
 
+(define (literal? x)
+  (or (string? x) (number? x) (procedure? x)))
+
 ;; - exprs -
 (define-form expr:var (name)
   [(sexp) name]
@@ -21,7 +24,7 @@
         (lambda () (error 'expr:var "unbound variable ~v" name))))])
 
 (define-form expr:lit (value)
-  [(sexp) (if (or (string? value) (number? value)) value (list 'quote value))]
+  [(sexp) (if (literal? value) value (list 'quote value))]
   [(compile env) (list 'quote value)])
 
 (define-form expr:racket (code)
@@ -38,7 +41,7 @@
     `(let ([,id ,subject]) ,on-success)])
 
 (define-form pat:lit (value)
-  [(sexp) (if (or (string? value) (number? value)) value (list 'quote value))]
+  [(sexp) (if (literal? value) value (list 'quote value))]
   [resolveExt env-empty]
   [idents '()]
   [(compile env subject on-success on-failure)

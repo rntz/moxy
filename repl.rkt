@@ -3,8 +3,8 @@
 
 (require racket/stream)
 
-(require "util.rkt")
 (require "debug.rkt")
+(require "util.rkt")
 (require "values.rkt")
 (require "env.rkt")
 (require "lex.rkt")
@@ -12,6 +12,8 @@
 (require "parse.rkt")
 (require "parse-builtins.rkt")
 (require "runtime.rkt")
+
+(provide repl)
 
 (define-tag FoundSemi rev-toks after)
 (define-tag NeedMore accum paren-level)
@@ -64,9 +66,9 @@
       ;; print what got bound
       (match res
         [(Expr e)
-          (debugf-pretty " ** AST:" (expr-sexp e))
+          (debugf-pretty " * AST:" (expr-sexp e))
           (define code (expr-compile e resolve-env))
-          (debugf-pretty " ** IR:" code)
+          (debugf-pretty " * IR:" code)
           (define value (eval code ns))
           (unless (void? value)
             (printf "~a\n" (show value)))
@@ -89,6 +91,7 @@
       (match (find-semi toks accum paren-level)
         [(FoundSemi rev-toks toks)
           ;; We found the end of the toplevel decl/expression!
+          (debugf " * TOKS: ~a" (show (reverse rev-toks)))
           (let ([result (parse-eval-toks (reverse rev-toks))])
             (eval-next (env-join parse-env (result-parseExt result))
                        (env-join resolve-env (result-resolveExt result))
@@ -111,4 +114,5 @@
   ;; enable line counting because it makes pretty printing better
   (port-count-lines! (current-error-port))
   (port-count-lines! (current-output-port))
+  (undebug!)
   (repl #f))

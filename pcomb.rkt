@@ -140,6 +140,7 @@
 ;;; Basic monadic operations
 (define ((return x) env str hardk softk ok) (ok #f x))
 
+;;; FIXME: redundant with pfail
 (define ((fail msg) env str hardk softk ok)
   (softk (location str) msg))
 
