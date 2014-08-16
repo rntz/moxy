@@ -259,6 +259,6 @@
       (return (result:decl decl)))))
 
 ;; (result:decl Decl)
-(define-form result:decl (decl)
+(define-result decl (decl)
   [resolveExt (decl-resolveExt decl)]
   [parseExt env-empty])

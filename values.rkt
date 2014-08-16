@@ -1,8 +1,10 @@
 #lang racket
 
-(require (for-syntax racket/syntax))    ;format-id
-(require racket/generic)                ;for gen:custom-write
-(require (only-in racket [hash-map racket/hash-map]))
+(require
+  (for-syntax (only-in racket/syntax
+                format-id with-syntax*))
+  racket/generic                ;for gen:custom-write
+  (only-in racket [hash-map racket/hash-map]))
 
 (require "util.rkt")
 
@@ -119,8 +121,8 @@
 ;; Defines a new tag, along with a constructor & match-expander for it.
 (define-syntax (define-tag stx)
   (with-syntax* ([(_ name fields ...) stx]
-                 [tag-name (format-id stx "tag:~a" #'name)]
-                 [name?    (format-id stx "~a?" #'name)])
+                 [tag-name (format-id #'name "tag:~a" #'name)]
+                 [name?    (format-id #'name "~a?" #'name)])
     (let ([field-list (syntax->datum #'(fields ...))])
       #`(begin
           (define tag-name (new-tag 'name '#,field-list))
@@ -146,7 +148,7 @@
           #,@(for/list ([i (in-naturals 0)]
                         [field (syntax->list #'(fields ...))])
                (with-syntax ([f field]
-                             [accessor (format-id stx "~a-~a" #'name field)])
+                             [accessor (format-id #'name "~a-~a" #'name field)])
                  #`(define (accessor x)
                      (if (name? x)
                        (vector-ref (ann-args x) '#,i)

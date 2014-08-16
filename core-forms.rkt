@@ -15,7 +15,7 @@
   (or (string? x) (number? x) (procedure? x)))
 
 ;; - exprs -
-(define-form expr:var (name)
+(define-expr var (name)
   [(sexp) name]
   [(compile env)
     ;; TODO: better error handling
@@ -23,16 +23,16 @@
       (hash-get name (env-get @vars env)
         (lambda () (error 'expr:var "unbound variable ~v" name))))])
 
-(define-form expr:lit (value)
+(define-expr lit (value)
   [(sexp) (if (literal? value) value (list 'quote value))]
   [(compile env) (list 'quote value)])
 
-(define-form expr:racket (code)
+(define-expr racket (code)
   [(sexp) `(racket ,code)]
   [(compile env) code])
 
 ;; - pats -
-(define-form pat:var (name)
+(define-pat var (name)
   [(sexp) name]
   [id (mkid name)]
   [resolveExt (env-single @vars (@vars-var name id))]
@@ -40,7 +40,7 @@
   [(compile env subject on-success on-failure)
     `(let ([,id ,subject]) ,on-success)])
 
-(define-form pat:lit (value)
+(define-pat lit (value)
   [(sexp) (if (literal? value) value (list 'quote value))]
   [resolveExt env-empty]
   [idents '()]
@@ -50,7 +50,7 @@
        ,on-failure)])
 
 ;; TODO: pat:vector, pat:ann shouldn't have to be core forms :(
-(define-form pat:vector (elems)
+(define-pat vector (elems)
   [(sexp) `(vector ,@(map pat-sexp elems))]
   [resolveExt (env-join* (map pat-resolveExt elems))]
   [idents (append* (map pat-idents elems))]
@@ -73,7 +73,7 @@
          ,on-failure))])
 
 ;; (ann name:Symbol params:[Pat])
-(define-form pat:ann (name params)
+(define-pat ann (name params)
   [(sexp) `(,name ,@(map pat-sexp params))]
   [arity (length params)]
   [params-pat (pat:vector params)]

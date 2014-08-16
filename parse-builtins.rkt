@@ -46,8 +46,9 @@
 (provide decl:val decl:fun decl:rec decl:tag)
 
 ;; (val Pat Expr)
-(define-form decl:val (pat expr)
+(define-decl val (pat expr)
   [(sexp) `(val ,(pat-sexp pat) ,(expr-sexp expr))]
+  [parseExt env-empty]
   [resolveExt (pat-resolveExt pat)]
   [(compile env)
     ;; in this case, we don't need an intermediate vector.
@@ -79,11 +80,12 @@
 ;; (fun name:Symbol arity:Nat branches:[Branch])
 ;; where Branch = (params:[Pat], body:Expr)
 ;; where each params-list is of length `arity'
-(define-form decl:fun (name arity branches)
+(define-decl fun (name arity branches)
   [(sexp) `(fun ,name ,@(for/list ([b branches])
                           (match-let ([`(,params ,body) b])
                             `(,(map pat-sexp params) ,(expr-sexp body)))))]
   [id (mkid name)]
+  [parseExt env-empty]
   [resolveExt (env-single @vars (@vars-var name id))]
   [func-expr (expr:case-lambda arity branches
                (expr:racket `(error "Non-exhaustive cases in fun!")))]
@@ -113,8 +115,9 @@
   (record [parser p-fun]))
 
 ;; (rec [Decl])
-(define-form decl:rec (decls)
+(define-decl rec (decls)
   [(sexp) `(rec ,@(map decl-sexp decls))]
+  [parseExt env-empty]
   [resolveExt (env-join* (map decl-resolveExt decls))]
   ;; TODO: we should check for definition cycles somehow!
   ;; if we compiled to IR instead of to Racket this might be easier.
@@ -128,11 +131,12 @@
 ;; (tag name:Symbol params:(Maybe [Symbol]))
 ;; TODO: require tags be upper-case?
 ;; TODO: require other identifiers be lower-case?
-(define-form decl:tag (name params)
+(define-decl tag (name params)
   [(sexp) `(tag ,name ,params)]
   [id (mkid "ctor:~a" name)]
   [tag-id (mkid "tag:~a" name)]
   [info (@var:ctor name id tag-id params)]
+  [parseExt env-empty]
   [resolveExt (env-single @vars (hash name info))]
   [(compile env)
     `((,tag-id (new-tag ',name ',(from-maybe params '())))
@@ -161,7 +165,7 @@
 ;; (case-lambda arity:Nat branches:[Branch] on-failure:Expr)
 ;; where Branch = (params:[Pat], body:Expr)
 ;; where each `params' is of length `arity'
-(define-form expr:case-lambda (arity branches on-failure)
+(define-expr case-lambda (arity branches on-failure)
   [(sexp) `(case-lambda
              ,(for/list ([b branches])
                 (match-let ([`(,pats ,body) b])
@@ -188,7 +192,7 @@
                     (<* p-expr p-optional-end))]))
 
 ;; (let [Decl] Expr)
-(define-form expr:let (decls exp)
+(define-expr let (decls exp)
   [(sexp) `(let ,(map decl-sexp decls) ,(expr-sexp exp))]
   [(compile env)
     (let loop ([decls decls] [env env])
@@ -204,7 +208,7 @@
                     (<* p-expr p-optional-end))]))
 
 ;; (if Expr Expr Expr)
-(define-form expr:if (subject then else)
+(define-expr if (subject then else)
   [(sexp) `(if ,(expr-sexp subject) ,(expr-sexp then) ,(expr-sexp else))]
   [(compile env)
     `(if (truthy? ,(expr-compile subject env))
@@ -217,7 +221,7 @@
                     (*> (keyword "else") p-expr))]))
 
 ;; (case Expr [(Pat, Expr)])
-(define-form expr:case (subject branches)
+(define-expr case (subject branches)
   [(sexp) `(case ,(expr-sexp subject)
              ,@(for/list ([b branches])
                  (match-let ([`(,pat ,body) b])
@@ -252,7 +256,7 @@
 (provide expr:call expr:seq)
 
 ;; (call Expr [Expr])
-(define-form expr:call (func args)
+(define-expr call (func args)
   [(sexp) (map expr-sexp (cons func args))]
   [(compile env) (map (lambda (x) (expr-compile x env)) (cons func args))])
 
@@ -263,7 +267,7 @@
                              (<* (listish p-expr) rparen))]))
 
 ;; (seq Expr Expr)
-(define-form expr:seq (a b)
+(define-expr seq (a b)
   [(sexp) `(begin ,(expr-sexp a) ,(expr-sexp b))]
   [(compile env) `(begin ,(expr-compile a env) ,(expr-compile b env))])
 
@@ -274,7 +278,7 @@
 
 ;; infix operators
 ;; associativity must be Left or Right.
-(define-form @infix:oper (assoc precedence function)
+(define-@infix oper (assoc precedence function)
   [(parser left-arg)
     (<$>
       (lambda (right-arg) (expr:call (expr:lit function)
@@ -337,20 +341,21 @@
 ;; TODO: expose these in parse env
 (provide pat:one pat:zero pat:let)
 
-(define-form pat:one () ;; "underscore" pattern, _, succeeds binding nothing
+(define-pat one () ;; "underscore" pattern, _, succeeds binding nothing
   [(sexp) '_]
   [resolveExt env-empty]
   [idents '()]
   [(compile env subject on-success on-failure) on-success])
 
-(define-form pat:zero (names) ;; pattern that always fails, binding `names'
+(define-pat zero (names) ;; pattern that always fails, binding `names'
   [(sexp) `(zero ,@names)]
   [idents (map gensym names)]
   [resolveExt (env-single @vars (hash-from-keys-values names
                                   (map @var:var names idents)))]
   [(compile env subject on-success on-failure) on-failure])
 
-(define-form pat:let (name expr) ;; always binds name to expr
+(define-pat let (name expr) ;; always binds name to expr
+  [(sexp) `(let ,name ,(expr-sexp expr))]
   [id (gensym name)]
   [resolveExt (env-single @vars (@vars-var name id))]
   [idents (list id)]
@@ -373,13 +378,13 @@
 ;; TODO: import, module, define-extension-point, define-extension
 (provide result:empty result:import)
 
-(define-form result:empty ()
+(define-result empty ()
   [resolveExt env-empty]
   [parseExt env-empty])
 
 ;; TODO: more powerful imports (qualifying, renaming, etc.)
 ;; (import Nodule)
-(define-form result:import (nodule)
+(define-result import (nodule)
   [resolveExt (nodule-resolveExt nodule)]
   [parseExt (nodule-parseExt nodule)])
 

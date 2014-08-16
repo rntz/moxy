@@ -1,7 +1,10 @@
 #lang racket
 
-(require (for-syntax racket/syntax))    ;format-id
-(require syntax/parse (for-syntax syntax/parse))
+(require
+  (for-syntax
+    (only-in racket/set list->set set-member?)
+    syntax/parse
+    (only-in racket/syntax format-id with-syntax*)))
 
 (require "util.rkt")
 (require "values.rkt")
@@ -13,8 +16,8 @@
 
 (define-syntax (define-ExtPoint stx)
   (with-syntax* ([(_ name join empty) stx]
-                 [name-join  (format-id stx "~a-join" #'name)]
-                 [name-empty (format-id stx "~a-empty" #'name)])
+                 [name-join  (format-id #'name "~a-join" #'name)]
+                 [name-empty (format-id #'name "~a-empty" #'name)])
     #`(begin
         (define name (make-ExtPoint 'name join empty))
         (define name-join (ExtPoint-join name))
@@ -65,13 +68,53 @@
 ;; hashes. We use hashes to represent records (and thus, more or less, OO-style
 ;; objects) in our language. Methods are represented by keys mapped to
 ;; functions; properties by keys mapped to values.
+;;
+;; FIXME: factor this out into its own file.
 
-(provide define-accessors define-accessor define-form record)
+(provide define-iface define-accessors define-accessor define-form record)
+
+(define-for-syntax (make-define-form stx form fields ifaces methods)
+  (with-syntax ([form form]
+                [(field ...) fields]
+                [(iface ...) ifaces]
+                [(method ...) methods])
+    (define (method-name a)
+        (if (pair? a) (car a) a))
+      (define fields (syntax->datum #'(field ...)))
+      (define methods (map (compose method-name car)
+                        (syntax->datum #'(method ...))))
+      (define all-methods (list->set (append fields methods)))
+      (for* ([ifc (syntax->list #'(iface ...))]
+             [m (map method-name (syntax-local-value ifc))])
+        (unless (set-member? all-methods m)
+          (raise-syntax-error #f (format "method ~v not implemented" m) stx)))
+      #`(define (form field ...)
+          (record
+            [#,'form 'form]
+            [field field] ...
+            method ...))))
+
+(define-syntax (define-iface stx)
+  (syntax-parse stx
+    [(_ iface-name accessor ...)
+      #`(begin
+          (define-syntax iface-name '(accessor ...))
+          (define-accessors iface-name accessor ...)
+          (define-syntax (#,(format-id #'iface-name "define-~a" #'iface-name)
+                           stx)
+            (syntax-parse stx
+              [(_ form-name:id (field:id (... ...)) method (... ...))
+                (make-define-form stx
+                  (format-id #'form-name "~a:~a" #'iface-name #'form-name)
+                  #'(field (... ...))
+                  #'(iface-name)
+                  #'(method (... ...)))])))]))
 
 (define-syntax (define-accessors stx)
   (syntax-parse stx
     [(_ prefix:id accessor ...)
-      (let ([mk-name (lambda (name) (format-id stx "~a-~a" #'prefix name))])
+      (let ([mk-name (lambda (name)
+                       (format-id #'prefix "~a-~a" #'prefix name))])
         #`(begin
             #,@(for/list [(axor (syntax->list #'(accessor ...)))]
                  (syntax-parse axor
@@ -93,13 +136,13 @@
             param ...))]))
 
 (define-syntax (define-form stx)
-  (with-syntax* ([(_ form (field ...) method ...) stx]
-                 )
-    #`(define (form field ...)
-        (record
-          [type 'form]
-          [field field] ...
-          method ...))))
+  (syntax-parse stx
+    [(_ form (field:id ...) #:isa (iface:id ...) method ...)
+      (make-define-form stx #'form #'(field ...) #'(iface ...) #'(method ...))]
+    [(_ form (field:id ...) #:isa iface:id method ...)
+      (make-define-form stx #'form #'(field ...) #'(iface) #'(method ...))]
+    [(_ form (field:id ...) method ...)
+      (make-define-form stx #'form #'(field ...) #'() #'(method ...))]))
 
 (define-syntax (record stx)
   (let* ([bindings (cdr (syntax->list stx))]
@@ -123,25 +166,35 @@
 ;; Convention: extension point names begin with "@"
 
 (provide
-  @exprs @exprs-join @exprs-empty @expr-parser
+  @exprs @exprs-join @exprs-empty
+  define-@expr @expr @expr-parser
+
   ;; TODO: rename to @infix-exprs
-  @infixes @infixes-join @infixes-empty @infix-precedence @infix-parser
-  @pats @pats-join @pats-empty @pat-parser
+  @infixes @infixes-join @infixes-empty
+  define-@infix @infix @infix-precedence @infix-parser
+
+  @pats @pats-join @pats-empty
+  define-@pat @pat @pat-parser
+
   ;; TODO: unify @infix-exprs & @infix-pats somehow?
   @infix-pats @infix-pats-join @infix-pats-empty
-  @infix-pat-precedence @infix-pat-parser
-  @decls @decls-join @decls-empty @decl-parser
-  @tops @tops-join @tops-empty @top-parse-eval)
+  define-@infix-pat @infix-pat @infix-pat-precedence @infix-pat-parser
+
+  @decls @decls-join @decls-empty
+  define-@decl @decl @decl-parser
+
+  @tops @tops-join @tops-empty
+  define-@top @top @top-parse-eval)
 
 ;; Maps tokens to (@expr)s
 (define-ExtPoint @exprs hash-union (hash))
-(define-accessors @expr
+(define-iface @expr
   parser     ;; Parser Expr
   )
 
 ;; Maps tokens to (@infix)es
 (define-ExtPoint @infixes hash-union (hash))
-(define-accessors @infix
+(define-iface @infix
   precedence               ;; Int
   ;; parser : Expr -> Parser Expr
   ;; takes the "left argument" to the infix operator.
@@ -152,24 +205,24 @@
 
 ;; Maps tokens to (@pat)s
 (define-ExtPoint @pats hash-union (hash))
-(define-accessors @pat
+(define-iface @pat
   parser) ;; Parser Pat
 
 (define-ExtPoint @infix-pats hash-union (hash))
-(define-accessors @infix-pat
+(define-iface @infix-pat
   precedence               ;; Int
   ;; parser : Expr -> Parser Expr, see @infix-parser above for explanation
   (parser left-pat))
 
 ;; Maps tokens to (@decl)s.
 (define-ExtPoint @decls hash-union (hash))
-(define-accessors @decl
+(define-iface @decl
   parser ;; Parser Decl (see "parts of speech" below for what Decl is)
   )
 
 ;; Maps tokens to (@top)s.
 (define-ExtPoint @tops hash-union (hash))
-(define-accessors @top
+(define-iface @top
   ;; ResolveEnv, NS -> Parser Result
   ;; ns is the Racket namespace in which we eval code.
   (parse-eval resolve-env ns))
@@ -182,9 +235,8 @@
 
 (provide
   @vars @vars-join @vars-empty
-  @var:var @var:ctor @vars-var @vars-ctor
-  @var-style @var-id @var-tag-id @var-tag-params @var-tag-arity
-  )
+  define-@var @var @var-style @var-id @var-tag-id @var-tag-params @var-tag-arity
+  @var:var @var:ctor @vars-var @vars-ctor)
 
 ;; maps var names to hashes of info about them.
 ;; hash keys:
@@ -196,19 +248,19 @@
 ;; - tag-params: (Maybe [Symbol]). The parameters for the ctor, if any.
 (define-ExtPoint @vars hash-union (hash))
 
-;; TODO: should this go here or in parse-builtins.rkt?
-(define-form @var:var (name id) [style 'var])
-(define-form @var:ctor (name id tag-id tag-params) [style 'ctor])
+(define-iface @var style id)
+(define-accessors @var tag-id tag-params) ;not-always-present fields
+
+(define (@var-tag-arity v [or-else #f])
+  (maybe (@var-tag-params v) 0 length))
+
+;; TODO: should this go here, in core-forms.rkt, or in parse-builtins.rkt?
+(define-@var var (name id) [style 'var])
+(define-@var ctor (name id tag-id tag-params) [style 'ctor])
 
 (define (@vars-var name id) (hash name (@var:var name id)))
 (define (@vars-ctor name id tag-id tag-params)
   (hash name (@var:ctor name id tag-id tag-params)))
-
-(define-accessors @var
-  style id tag-id tag-params)
-
-(define (@var-tag-arity v [or-else #f])
-  (maybe (@var-tag-params v) 0 length))
 
 
 ;; Builtin parts of speech.
@@ -221,18 +273,19 @@
 ;; "method" that takes a ResolveEnv and produces an IR expression.
 
 (provide
-  expr-compile expr-sexp
-  decl-sexp decl-resolveExt decl-compile
-  pat-sexp pat-resolveExt pat-idents pat-compile
-  result-resolveExt result-parseExt
-  nodule-name nodule-resolveExt nodule-parseExt)
+  define-expr expr expr-compile expr-sexp
+  define-decl decl decl-sexp decl-resolveExt decl-compile
+  define-pat pat pat-sexp pat-resolveExt pat-idents pat-compile
+  define-result result result-resolveExt result-parseExt
+  define-nodule nodule nodule-name nodule-resolveExt nodule-parseExt)
 
-(define-accessors expr
+(define-iface expr
   (sexp)
   (compile resolve-env))                ; ResolveEnv -> IR
 
-(define-accessors decl
+(define-iface decl
   (sexp)
+  parseExt                              ; ParseEnv
   resolveExt                            ; ResolveEnv
 
   ;; The rest of our interface would ideally be:
@@ -258,7 +311,7 @@
   ;; every `code', but the `id's are defined in the order given (a la letrec).
   (compile resolve-env))
 
-(define-accessors pat
+(define-iface pat
   (sexp)
   ;; can patterns really modify our resolve environment in arbitrary ways?
   ;;
@@ -299,11 +352,11 @@
 
 ;; The "result" of parsing a top-level declaration. Not exactly a part of
 ;; speech, but acts like one.
-(define-accessors result
+(define-iface result
   resolveExt
   parseExt)
 
-(define-accessors nodule ;; can't use "module", it means something in Racket
+(define-iface nodule ;; can't use "module", it means something in Racket
   name
   resolveExt
   parseExt)
