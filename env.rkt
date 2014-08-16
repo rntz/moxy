@@ -1,12 +1,9 @@
 #lang racket
 
-(require
-  (for-syntax
-    (only-in racket/set list->set set-member?)
-    syntax/parse
-    (only-in racket/syntax format-id with-syntax*)))
+(require (for-syntax (only-in racket/syntax format-id)))
 
 (require "util.rkt")
+(require "objects.rkt")
 (require "values.rkt")
 
 (provide make-ExtPoint define-ExtPoint ExtPoint-equal?)
@@ -15,13 +12,14 @@
   (ExtPoint name (gensym name) (Monoid join empty)))
 
 (define-syntax (define-ExtPoint stx)
-  (with-syntax* ([(_ name join empty) stx]
-                 [name-join  (format-id #'name "~a-join" #'name)]
-                 [name-empty (format-id #'name "~a-empty" #'name)])
-    #`(begin
-        (define name (make-ExtPoint 'name join empty))
-        (define name-join (ExtPoint-join name))
-        (define name-empty (ExtPoint-empty name)))))
+  (syntax-case stx ()
+    [(_ name join empty)
+      #`(begin
+          (define name (make-ExtPoint 'name join empty))
+          (define #,(format-id #'name "~a-join" #'name)
+            (ExtPoint-join name))
+          (define #,(format-id #'name "~a-empty" #'name)
+            (ExtPoint-empty name)))]))
 
 (define ExtPoint-equal?
   (lambda (x y) (eq? (ExtPoint-uid x) (ExtPoint-uid y)))
@@ -62,104 +60,6 @@
 (define (env-get ext-point env)
   (hash-get ext-point env
     (lambda () (ExtPoint-empty ext-point))))
-
-
-;; Tools for defining interfaces on hashes and convenient ways to construct
-;; hashes. We use hashes to represent records (and thus, more or less, OO-style
-;; objects) in our language. Methods are represented by keys mapped to
-;; functions; properties by keys mapped to values.
-;;
-;; FIXME: factor this out into its own file.
-
-(provide define-iface define-accessors define-accessor define-form record)
-
-(define-for-syntax (make-define-form stx form fields ifaces methods)
-  (with-syntax ([form form]
-                [(field ...) fields]
-                [(iface ...) ifaces]
-                [(method ...) methods])
-    (define (method-name a)
-        (if (pair? a) (car a) a))
-      (define fields (syntax->datum #'(field ...)))
-      (define methods (map (compose method-name car)
-                        (syntax->datum #'(method ...))))
-      (define all-methods (list->set (append fields methods)))
-      (for* ([ifc (syntax->list #'(iface ...))]
-             [m (map method-name (syntax-local-value ifc))])
-        (unless (set-member? all-methods m)
-          (raise-syntax-error #f (format "method ~v not implemented" m) stx)))
-      #`(define (form field ...)
-          (record
-            [#,'form 'form]
-            [field field] ...
-            method ...))))
-
-(define-syntax (define-iface stx)
-  (syntax-parse stx
-    [(_ iface-name accessor ...)
-      #`(begin
-          (define-syntax iface-name '(accessor ...))
-          (define-accessors iface-name accessor ...)
-          (define-syntax (#,(format-id #'iface-name "define-~a" #'iface-name)
-                           stx)
-            (syntax-parse stx
-              [(_ form-name:id (field:id (... ...)) method (... ...))
-                (make-define-form stx
-                  (format-id #'form-name "~a:~a" #'iface-name #'form-name)
-                  #'(field (... ...))
-                  #'(iface-name)
-                  #'(method (... ...)))])))]))
-
-(define-syntax (define-accessors stx)
-  (syntax-parse stx
-    [(_ prefix:id accessor ...)
-      (let ([mk-name (lambda (name)
-                       (format-id #'prefix "~a-~a" #'prefix name))])
-        #`(begin
-            #,@(for/list [(axor (syntax->list #'(accessor ...)))]
-                 (syntax-parse axor
-                   [(name:id param:id ...)
-                     #`(define-accessor #,(mk-name #'name) name (param ...))]
-                   [name:id
-                     #`(define-accessor #,(mk-name #'name) name)]))))]))
-
-(define-syntax (define-accessor stx)
-  (syntax-parse stx
-    [(_ axor-name:id key:id)
-      #`(define (axor-name self [or-else #f])
-          (hash-get 'key self (or or-else (lambda () (error 'axor-name
-                                                  "absent field: ~v" 'key)))))]
-    [(_ axor-name:id key:id (param:id ...))
-      #`(define (axor-name self param ...)
-          ((hash-get 'key self (lambda ()
-                                 (error 'axor-name "absent method: ~v" 'key)))
-            param ...))]))
-
-(define-syntax (define-form stx)
-  (syntax-parse stx
-    [(_ form (field:id ...) #:isa (iface:id ...) method ...)
-      (make-define-form stx #'form #'(field ...) #'(iface ...) #'(method ...))]
-    [(_ form (field:id ...) #:isa iface:id method ...)
-      (make-define-form stx #'form #'(field ...) #'(iface) #'(method ...))]
-    [(_ form (field:id ...) method ...)
-      (make-define-form stx #'form #'(field ...) #'() #'(method ...))]))
-
-(define-syntax (record stx)
-  (let* ([bindings (cdr (syntax->list stx))]
-         [names (map (lambda (b) (syntax-parse b
-                              [(name:id value) #'name]
-                              ;; TODO: must have at least one body expr
-                              [((name:id param:id ...) body ...) #'name]))
-                  bindings)]
-         [exprs (map (lambda (b) (syntax-parse b
-                              [(name:id value) #'value]
-                              [((name:id param:id ...) body ...)
-                                #'(lambda (param ...) body ...)]))
-                  bindings)])
-    (with-syntax ([(name ...) names] [(expr ...) exprs])
-      #`(make-immutable-hash
-          (let* ((name expr) ...)
-            `((name . ,name) ...))))))
 
 
 ;; -- Built-in ParseEnv extension points --

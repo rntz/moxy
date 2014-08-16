@@ -6,6 +6,7 @@
 (require "util.rkt")
 (require "debug.rkt")
 (require "values.rkt")
+(require "objects.rkt")
 (require "env.rkt")
 (require "lex.rkt")
 (require "pcomb.rkt")
