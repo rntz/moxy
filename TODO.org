@@ -1,7 +1,5 @@
 * Need to do
 - Make up a name for the language
-- Modules and imports
-- Implement more forms
 - Expose parser-combinators to MLOID
   - syntax: f@(x,y) = (<$> f x y)
     @x = pure x?
@@ -10,12 +8,11 @@
 - Investigate pattern-matching calculi for inspiration
 
 * Would be nice
+- Tests! and some way of running them!
+- "Module.foo" syntax
 - Identifier-level syntax (see design.org)?
-- Optimize pattern-matching forms not to create intermediate vectors unless
-  necessary.
 - Duplicate-variable checking for patterns (e.g. so (x,x) doesn't behave
   unexpectedly)
-- Tests! and some way of running them!
 - Some way to do renaming/qualified imports
 - Error handling at repl.
 - Control-C at repl.
@@ -25,9 +22,6 @@
 - Symbol prefix functions?
 - Infix operators made infix by the in-language prelude rather than built-in.
 - Check that use of parens in tag pattern matches tag declaration?
-- Disallow module identifiers in expressions?
-- Avoid generating large `on-failure' values in ir-case.
-- *Pretty*-print results of compilation in debug mode
 
 * What functions need to be built-in?
 - io: say, print, format
