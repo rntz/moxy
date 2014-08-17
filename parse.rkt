@@ -207,8 +207,10 @@
 
 ;; This is it, folks. This is what it's all for.
 ;;
-;; It's also weird (to me). It threads the evaluation through the parser rather
-;; than repeatedly parsing and then evaluating.
+;; It also feels weird (to me). It threads the evaluation through the parser
+;; rather than repeatedly parsing and then evaluating.
+;;
+;; ResolvEnv, NS -> Parser Result
 (define (parse-eval resolve-env ns)
   ;; (eprintf "parse-eval: ~v\n" resolve-env) ;FIXME
   (let loop ([resolve-env resolve-env]
@@ -227,6 +229,7 @@
                     (env-join renv result-renv))))))
       (eta (return (record [resolveExt renv] [parseExt penv]))))))
 
+;; ResolvEnv, NS -> Parser Result
 (define (parse-eval-one resolve-env ns)
   ;; (eprintf "parse-eval-one: ~v\n" resolve-env) ;FIXME
   (>>= ask

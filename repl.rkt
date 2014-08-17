@@ -36,20 +36,37 @@
 (define-tag Result result)
 (define-tag Expr expr)
 
-(define (repl-display-@vars vars ns)
+(define (show-result ns result [indent 0])
+  (show-@nodules ns (env-get @nodules (result-parseExt result)) indent)
+  (show-@vars ns (env-get @vars (result-resolveExt result)) indent))
+
+(define (show-@nodules ns nodules indent)
+  (define prefix (string->immutable-string (make-string (* 2 indent) #\space)))
+  (define (indent-printf fmt . args)
+    (apply printf (string-append prefix fmt) args))
+  (for ([(name nodule) nodules])
+    ;; TODO: empty modules should display as "module NAME {}"
+    (indent-printf "module ~a {\n" name)
+    (show-result ns (@nodule->result nodule) (+ 1 indent))
+    (indent-printf "}\n")))
+
+(define (show-@vars ns vars indent)
+  (define prefix (string->immutable-string (make-string (* 2 indent) #\space)))
+  (define (indent-printf fmt . args)
+    (apply printf (string-append prefix fmt) args))
   (for ([(name info) vars])
     (match (hash-get 'style info (lambda () #f))
       ['var (void)]
       ['ctor
-        (printf "tag ~a" name)
+        (indent-printf "tag ~a" name)
         (match (@var-tag-params info)
           [(Just params)
             (printf "(~a)\n" (string-join (map symbol->string params) ", "))]
           [_ (printf "\n")])]
-      [_ (printf "Oh my, what have you done to ~a?!\n" name)])
+      [_ (indent-printf "Oh my, what have you done to ~a?!\n" name)])
     (if (hash-has? 'id info)
-      (printf "val ~a = ~a\n" name (show (eval (@var-id info) ns)))
-      (printf "I don't even know what value ~a has!\n" name))))
+      (indent-printf "val ~a = ~a\n" name (show (eval (@var-id info) ns)))
+      (indent-printf "I don't even know what value ~a has!\n" name))))
 
 (define (repl [hack #t])
   (when hack
@@ -74,7 +91,7 @@
             (printf "~a\n" (show value)))
           (result:empty)]
         [(Result result)
-          (repl-display-@vars (env-get @vars (result-resolveExt result)) ns)
+          (show-result ns result)
           result]))
     (define (parse-eval-toks toks)
       ((choice

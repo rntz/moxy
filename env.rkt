@@ -84,7 +84,11 @@
   define-@decl @decl @decl-parser
 
   @tops @tops-join @tops-empty
-  define-@top @top @top-parse-eval)
+  define-@top @top @top-parse-eval
+
+  @nodules @nodules-join @nodules-empty
+  define-@nodule @nodule @nodule-name @nodule-resolveExt @nodule-parseExt
+  @nodules-nodule @nodule->result)
 
 ;; Maps tokens to (@expr)s
 (define-ExtPoint @exprs hash-union (hash))
@@ -127,6 +131,25 @@
   ;; ns is the Racket namespace in which we eval code.
   (parse-eval resolve-env ns))
 
+;; Maps symbols to (@nodule)s
+(define-ExtPoint @nodules hash-union (hash))
+;; eventually, may want to represent @nodules differently, if we have operators
+;; on nodules like restricting exported names, etc.
+(define-iface @nodule ;; can't use "module", it means something in Racket
+  name                                  ;symbol
+  resolveExt                            ;ResolveEnv
+  parseExt)                             ;ParseEnv
+
+(define-@nodule nodule (name result)
+  [resolveExt (result-resolveExt result)]
+  [parseExt (result-parseExt result)])
+
+(define (@nodules-nodule name result)
+  (hash name (@nodule:nodule name result)))
+
+;; hack that takes advantage of nodules satisfying the result interface
+(define (@nodule->result nodule) nodule)
+
 
 ;; -- Built-in ResolveEnv extension points --
 
@@ -139,11 +162,11 @@
   @var:var @var:ctor @vars-var @vars-ctor)
 
 ;; maps var names to hashes of info about them.
-;; hash keys:
+;; Ubiquitous keys:
 ;; - style: one of '(var ctor)
 ;; - id: the IR identifier for the value of this variable.
 ;;
-;; Hash keys for ctors:
+;; Hash keys for ctors only:
 ;; - tag-id: The IR id for the tag for this ctor.
 ;; - tag-params: (Maybe [Symbol]). The parameters for the ctor, if any.
 (define-ExtPoint @vars hash-union (hash))
@@ -176,8 +199,7 @@
   define-expr expr expr-compile expr-sexp
   define-decl decl decl-sexp decl-resolveExt decl-compile
   define-pat pat pat-sexp pat-resolveExt pat-idents pat-compile
-  define-result result result-resolveExt result-parseExt
-  define-nodule nodule nodule-name nodule-resolveExt nodule-parseExt)
+  define-result result result-resolveExt result-parseExt)
 
 (define-iface expr
   (sexp)
@@ -253,10 +275,5 @@
 ;; The "result" of parsing a top-level declaration. Not exactly a part of
 ;; speech, but acts like one.
 (define-iface result
-  resolveExt
-  parseExt)
-
-(define-iface nodule ;; can't use "module", it means something in Racket
-  name
   resolveExt
   parseExt)

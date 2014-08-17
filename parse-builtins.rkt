@@ -1,5 +1,6 @@
 #lang racket
 
+(require "debug.rkt")
 (require "util.rkt")
 (require "values.rkt")
 (require "objects.rkt")
@@ -149,13 +150,33 @@
   (record [parser (<$> decl:tag p-caps-id
                     (option-maybe (parens (listish p-var-id))))]))
 
+;; TODO: more powerful imports (qualifying, renaming, etc.)
+;; (open Nodule)
+(define-decl open (name nodule)
+  [(sexp) `(open ,name)]
+  [resolveExt (@nodule-resolveExt nodule)]
+  [parseExt (@nodule-parseExt nodule)]
+  [(compile env) '()])
+
+(define @decl:open
+  (record [parser
+            (>>= ask
+              (lambda (parse-env)
+                (<$> (unary decl:open)
+                  (pmap-maybe p-caps-id
+                    (lambda (name)
+                      (maybe-map (hash-lookup name (env-get @nodules parse-env))
+                        (lambda (x) `(,name ,x))))
+                    (lambda (name)
+                      (format "expected module name; got ~v" name))))))]))
+
 (define builtin-@decls
   (hash
-    (TID "val") @decl:val
-    (TID "fun") @decl:fun
-    (TID "tag") @decl:tag
-    (TID "rec") @decl:rec
-    ))
+    (TID "val")     @decl:val
+    (TID "fun")     @decl:fun
+    (TID "tag")     @decl:tag
+    (TID "rec")     @decl:rec
+    (TID "open")    @decl:open))
 
 
 ;; -- exprs --
@@ -377,19 +398,26 @@
 
 ;; -- tops & their results --
 ;; TODO: import, module, define-extension-point, define-extension
-(provide result:empty result:import)
+(provide result:empty result:nodule)
 
 (define-result empty ()
   [resolveExt env-empty]
   [parseExt env-empty])
 
-;; TODO: more powerful imports (qualifying, renaming, etc.)
-;; (import Nodule)
-(define-result import (nodule)
-  [resolveExt (nodule-resolveExt nodule)]
-  [parseExt (nodule-parseExt nodule)])
+(define-result nodule (name result)
+  [resolveExt env-empty]
+  [parseExt (env-single @nodules (@nodules-nodule name result))])
 
-(define builtin-@tops (hash))
+;; 'module' ID '{' TOPS '}'
+(define @top:nodule
+  (record
+    [(parse-eval resolve-env ns)
+     (<$> result:nodule
+       p-caps-id (braces (parse-eval resolve-env ns)))]))
+
+(define builtin-@tops
+  (hash
+    (TID "module")  @top:nodule))
 
 
 ;; -- The default/built-in parser extensions --
