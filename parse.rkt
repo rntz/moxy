@@ -81,6 +81,40 @@
 (define (listish p) (begin-sep-end-by p comma))
 
 
+;; Module-qualified stuff
+;; returns (name nodule) if it succeeds
+(define (p-nodule-name-in parse-env)
+  ;; TODO: better error messages indicating the context in which we were looking
+  ;; for the module name
+  (try (pmap-maybe p-caps-id
+         (lambda (name)
+           (maybe-map (hash-lookup name (env-get @nodules parse-env))
+             (lambda (nodule) `(,name ,nodule))))
+         (lambda (t) (format "expected module name; got ~v" t)))))
+
+(define (p-nodule-prefix-in parse-env)
+  (option None
+    (>>= (try (<* (p-nodule-name-in parse-env) dot))
+      (lambda (x)
+        (match-define `(,name ,nodule) x)
+        (<$> (match-lambda
+               [(None) (Just `((,name) ,nodule))]
+               [(Just `(,names ,nodule))
+                 (Just `(,(cons name names) ,nodule))])
+          (p-nodule-prefix-in (@nodule-parseExt nodule)))))))
+
+(define p-nodule-prefix (>>= ask p-nodule-prefix-in))
+
+(define p-nodule-qualified
+  (case-lambda
+    [(p) (seq* p-nodule-prefix p)]
+    [(p if-unqualified if-qualified)
+      (>>= p-nodule-prefix
+        (match-lambda
+          [(Just `(,names ,nodule)) (<$> (partial if-qualified names nodule) p)]
+          [(None) (<$> if-unqualified p)]))]))
+
+
 ;; Parses an expression at a given precedence (i.e. the longest expression that
 ;; contains no operators of looser precedence).
 ;;
@@ -102,7 +136,7 @@
     ;;
     ;; TODO: shouldn't only tag & variable identifiers be allowed, and e.g.
     ;; module identifiers be disallowed?
-    (<$> expr:var p-any-id)))
+    (p-nodule-qualified p-any-id expr:var expr:nodule-var)))
 
 ;; Problem: precedence not taken into account. "let" does not have same
 ;; precedence as function application. Is this a real problem?

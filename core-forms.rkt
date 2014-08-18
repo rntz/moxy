@@ -8,7 +8,7 @@
 ;; extensions (even built-in ones).
 
 (provide
-  expr:var expr:lit expr:racket
+  expr:var expr:nodule-var expr:lit expr:racket
   pat:lit pat:var pat:vector pat:ann)
 
 (define (literal? x)
@@ -22,6 +22,14 @@
     (hash-get 'id
       (hash-get name (env-get @vars env)
         (lambda () (error 'expr:var "unbound variable ~v" name))))])
+
+(define-expr nodule-var (nodule-path nodule name)
+  [(sexp) `(nodule-var ,nodule-path ,name)]
+  [(compile env)
+    (hash-get 'id
+      (hash-get name (env-get @vars (@nodule-resolveExt nodule))
+        (lambda () (error 'expr:nodule-var "unbound variable ~v in module ~v"
+                name nodule-path))))])
 
 (define-expr lit (value)
   [(sexp) (if (literal? value) value (list 'quote value))]
