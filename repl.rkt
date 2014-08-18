@@ -68,6 +68,7 @@
       (indent-printf "val ~a = ~a\n" name (show (eval (@var-id info) ns)))
       (indent-printf "I don't even know what value ~a has!\n" name))))
 
+;; TODO: refactor this
 (define (repl [hack #t])
   (when hack
     (read-line)) ;; crude hack to make this work inside the racket repl
@@ -94,14 +95,18 @@
           (show-result ns result)
           result]))
     (define (parse-eval-toks toks)
-      ((choice
-         (<$> Result (<* (parse-eval resolve-env ns) peof))
-         (<$> Expr (<* p-expr peof)))
-        parse-env
-        (stream-stream (in-list toks))
-        print-error
-        print-error
-        handle))
+      (with-handlers ([(const #t)
+                        (lambda (exn)
+                          (displayln (exn-message exn))
+                          (result:empty))])
+        ((choice
+           (<$> Result (<* (parse-eval resolve-env ns) peof))
+           (<$> Expr (<* p-expr peof)))
+          parse-env
+          (stream-stream (in-list toks))
+          print-error
+          print-error
+          handle)))
     (let get-expr ([toks toks]
                    [accum '()]
                    [paren-level 0])
@@ -121,11 +126,22 @@
           ;; Grab a line and keep looking for the semi
           ;;(printf (if (null? accum) "MLOID: " "   ... "))
           (printf (if (null? accum) "- " "= "))
-          (define line (read-line))
-          (if (eof-object? line) (eprintf "Bye!\n")
-            (get-expr (stream->list (call-with-input-string line tokenize))
-                      accum
-                      paren-level))]))))
+          (define line
+            ;; TODO: check behavior inside racket repl.
+            ;; FIXME: should only catch ^C (SIGINT) breaks, not hang-ups or
+            ;; terminates.
+            (with-handlers ([exn:break? (const None)])
+              (Just (read-line))))
+          (match line
+            [(Just x)
+              (if (eof-object? x) (eprintf "Bye!\n")
+                (get-expr
+                  (stream->list (call-with-input-string x tokenize))
+                  accum
+                  paren-level))]
+            [(None)
+              (eprintf "Interrupted!\n")
+              (get-expr '() '() 0)])]))))
 
 (module+ main
   ;; enable line counting because it makes pretty printing better
