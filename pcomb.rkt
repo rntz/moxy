@@ -137,18 +137,31 @@
 ;;;
 ;;; This is basically a reimplementation of the Haskell Parsec library.
 
+;; some contracts
+(define parser/c
+  (-> any/c any/c procedure? procedure? procedure? any/c))
+
 ;;; Basic monadic operations
-(define ((return x) env str hardk softk ok) (ok #f x))
+(define/contract ((return x) env str hardk softk ok)
+  (-> any/c parser/c)
+  (ok #f x))
 
 ;;; FIXME: redundant with pfail
 (define ((fail msg) env str hardk softk ok)
   (softk (location str) msg))
 
-(define ((pmap1 f a) env str hardk softk ok)
+(define/contract ((pmap1 f a) env str hardk softk ok)
+  (-> procedure? parser/c parser/c)
+  (unless (procedure? f) (error 'pmap1 "not a procedure")) ;TODO: contracts
+  (unless (procedure? a) (error 'pmap1 "not a parser"))
   (a env str hardk softk
     (lambda (ate res) (ok ate (f res)))))
 
-(define ((pmap2 f a b) env str hardk softk ok)
+(define/contract ((pmap2 f a b) env str hardk softk ok)
+  (-> procedure? parser/c parser/c parser/c)
+  (unless (procedure? f) (error 'pmap2 "not a procedure")) ;TODO: contracts
+  (unless (procedure? a) (error 'pmap2 "not a parser"))
+  (unless (procedure? b) (error 'pmap2 "not a parser"))
   (a env str hardk softk
     (lambda (aate ares)
       (b env str hardk (if aate hardk softk)
