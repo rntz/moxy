@@ -6,6 +6,7 @@
 (require "util.rkt")
 (require "values.rkt")
 (require "env.rkt")
+(require "core-forms.rkt")              ;@vars-var
 
 ;; This is a crude hack but it works, so whatever. Ideally we'd expose only the
 ;; set of language primitives we actually need, but racket's baroque module and

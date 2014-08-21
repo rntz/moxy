@@ -17,7 +17,7 @@
   keyword keysym comma dot semi equals bar p-end p-optional-end
   lparen rparen lbrace rbrace lbrack rbrack
   parens braces brackets
-  p-str p-num p-any-id p-id p-var-id p-caps-id
+  p-str p-num p-any-id p-id p-var-id p-caps-id p-var
   listish
   ;; TODO: p-pat
   p-expr p-expr-at p-prefix-expr-at p-infix-expr
@@ -82,6 +82,9 @@
 
 
 ;; Module-qualified stuff
+;; TODO: refactor this, it sucks
+;; TODO: A.B.x should *parse* but not *compile*
+
 ;; returns (name nodule) if it succeeds
 (define (p-nodule-name-in parse-env)
   ;; TODO: better error messages indicating the context in which we were looking
@@ -92,27 +95,16 @@
              (lambda (nodule) `(,name ,nodule))))
          (lambda (t) (format "expected module name; got ~v" t)))))
 
-(define (p-nodule-prefix-in parse-env)
-  (option None
+(define (p-var-in id-parser parse-env)
+  (choice
+    (<$> var:local id-parser)
     (>>= (try (<* (p-nodule-name-in parse-env) dot))
       (lambda (x)
-        (match-define `(,name ,nodule) x)
-        (<$> (match-lambda
-               [(None) (Just `((,name) ,nodule))]
-               [(Just `(,names ,nodule))
-                 (Just `(,(cons name names) ,nodule))])
-          (p-nodule-prefix-in (@nodule-parseExt nodule)))))))
+        (match-define `(,_ ,nodule) x)
+        (<$> (partial var:qualified nodule)
+          (p-var-in id-parser (@nodule-parseExt nodule)))))))
 
-(define p-nodule-prefix (>>= ask p-nodule-prefix-in))
-
-(define p-nodule-qualified
-  (case-lambda
-    [(p) (seq* p-nodule-prefix p)]
-    [(p if-unqualified if-qualified)
-      (>>= p-nodule-prefix
-        (match-lambda
-          [(Just `(,names ,nodule)) (<$> (partial if-qualified names nodule) p)]
-          [(None) (<$> if-unqualified p)]))]))
+(define (p-var p) (>>= ask (partial p-var-in p)))
 
 
 ;; Parses an expression at a given precedence (i.e. the longest expression that
@@ -136,7 +128,7 @@
     ;;
     ;; TODO: shouldn't only tag & variable identifiers be allowed, and e.g.
     ;; module identifiers be disallowed?
-    (p-nodule-qualified p-any-id expr:var expr:nodule-var)))
+    (<$> expr:var (p-var p-var-id))))
 
 ;; Problem: precedence not taken into account. "let" does not have same
 ;; precedence as function application. Is this a real problem?

@@ -158,32 +158,24 @@
 
 (provide
   @vars @vars-join @vars-empty
-  define-@var @var @var-style @var-id @var-tag-id @var-tag-params @var-tag-arity
-  @var:var @var:ctor @vars-var @vars-ctor)
+  define-@var @var @var-style @var-id
+  @var-tag-id @var-tag-params @var-tag-arity)
 
-;; maps var names to hashes of info about them.
-;; Ubiquitous keys:
+;; Maps symbols to (@var)s.
+(define-ExtPoint @vars hash-union (hash))
+
+;; Info about a name. Ubiquitous fields:
 ;; - style: one of '(var ctor)
 ;; - id: the IR identifier for the value of this variable.
 ;;
-;; Hash keys for ctors only:
+;; Fields for ctors only:
 ;; - tag-id: The IR id for the tag for this ctor.
 ;; - tag-params: (Maybe [Symbol]). The parameters for the ctor, if any.
-(define-ExtPoint @vars hash-union (hash))
-
 (define-iface @var style id)
 (define-accessors @var tag-id tag-params) ;not-always-present fields
 
 (define (@var-tag-arity v [or-else #f])
   (maybe (@var-tag-params v) 0 length))
-
-;; TODO: should this go here, in core-forms.rkt, or in parse-builtins.rkt?
-(define-@var var (name id) [style 'var])
-(define-@var ctor (name id tag-id tag-params) [style 'ctor])
-
-(define (@vars-var name id) (hash name (@var:var name id)))
-(define (@vars-ctor name id tag-id tag-params)
-  (hash name (@var:ctor name id tag-id tag-params)))
 
 
 ;; Builtin parts of speech.
@@ -196,10 +188,16 @@
 ;; "method" that takes a ResolveEnv and produces an IR expression.
 
 (provide
+  define-var var var-sexp var-resolve
   define-expr expr expr-compile expr-sexp
   define-decl decl decl-sexp decl-resolveExt decl-compile
   define-pat pat pat-sexp pat-resolveExt pat-idents pat-compile
   define-result result result-resolveExt result-parseExt)
+
+;; a var is something that knows how to resolve itself to a @var
+(define-iface var
+  (sexp)
+  (resolve env or-else))                ; ResolveEnv, thunk -> @var
 
 (define-iface expr
   (sexp)

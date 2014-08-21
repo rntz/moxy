@@ -8,28 +8,40 @@
 ;; extensions (even built-in ones).
 
 (provide
-  expr:var expr:nodule-var expr:lit expr:racket
+  @var:var @var:ctor @vars-var @vars-ctor
+  var:local var:qualified
+  expr:var expr:lit expr:racket
   pat:lit pat:var pat:vector pat:ann)
 
 (define (literal? x)
   (or (string? x) (number? x) (procedure? x)))
 
-;; - exprs -
-(define-expr var (name)
-  [(sexp) name]
-  [(compile env)
-    ;; TODO: better error handling
-    (hash-get 'id
-      (hash-get name (env-get @vars env)
-        (lambda () (error 'expr:var "unbound variable ~v" name))))])
+;; - @vars -
+(define-@var var (name id) [style 'var])
+(define-@var ctor (name id tag-id tag-params) [style 'ctor])
 
-(define-expr nodule-var (nodule-path nodule name)
-  [(sexp) `(nodule-var ,nodule-path ,name)]
+(define (@vars-var name id) (hash name (@var:var name id)))
+(define (@vars-ctor name id tag-id tag-params)
+  (hash name (@var:ctor name id tag-id tag-params)))
+
+;; - vars -
+(define-var local (name)
+  [(sexp) name]
+  [(resolve env or-else)
+    (hash-get name (env-get @vars env) or-else)])
+
+(define-var qualified (nodule name)
+  [(sexp) (cons (@nodule-name nodule) (var-sexp name))]
+  [(resolve env or-else)
+    (var-resolve name (@nodule-resolveExt nodule) or-else)])
+
+;; - exprs -
+(define-expr var (var)                 ;var -> expr
+  [(sexp) (var-sexp var)]
   [(compile env)
-    (hash-get 'id
-      (hash-get name (env-get @vars (@nodule-resolveExt nodule))
-        (lambda () (error 'expr:nodule-var "unbound variable ~v in module ~v"
-                name nodule-path))))])
+    (@var-id (var-resolve var env
+               (lambda () (error 'expr:var "unbound variable ~a"
+                       (show (var-sexp var))))))])
 
 (define-expr lit (value)
   [(sexp) (if (literal? value) value (list 'quote value))]
@@ -80,19 +92,21 @@
          ;; not a vector or wrong length
          ,on-failure))])
 
-;; (ann name:Symbol params:[Pat])
-(define-pat ann (name params)
-  [(sexp) `(,name ,@(map pat-sexp params))]
+;; (ann var:Var params:[Pat])
+(define-pat ann (var params)
+  [(sexp) `(,(var-sexp var) ,@(map pat-sexp params))]
   [arity (length params)]
   [params-pat (pat:vector params)]
   [resolveExt (pat-resolveExt params-pat)]
   [idents (pat-idents params-pat)]
   [(compile env subject on-success on-failure)
-    (let* ([info (hash-get name (env-get @vars env)
-                   (lambda () (error 'pat:ann "unbound ctor ~v" name)))]
-           [ctor-id (@var-id info)]
+    (let* ([info (var-resolve var env
+                   (lambda () (error 'pat:ann "unbound tag ~a"
+                           (show (var-sexp var)))))]
+           [var-id (@var-id info)]
            [tag-id (@var-tag-id info
-                     (lambda () (error 'pat:ann "~v is not a ctor" name)))]
+                     (lambda () (error 'pat:ann "~a is not a tag"
+                             (show (var-sexp var)))))]
            [tag-arity (@var-tag-arity info)]
            [tmp (mktemp 'ann-args)])
       (unless (= arity tag-arity)
