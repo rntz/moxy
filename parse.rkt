@@ -238,14 +238,12 @@
 ;;
 ;; ResolvEnv, NS -> Parser Result
 (define (parse-eval resolve-env ns)
-  ;; (eprintf "parse-eval: ~v\n" resolve-env) ;FIXME
   (let loop ([resolve-env resolve-env]
              [penv env-empty]
              [renv env-empty])
     (choice
       (>>= (parse-eval-one resolve-env ns)
         (lambda (result)
-          ;; (eprintf "parse-eval: got result: ~v\n" result) ;; FIXME
           (let ([result-penv (result-parseExt result)]
                 [result-renv (result-resolveExt result)])
             (local
@@ -257,7 +255,6 @@
 
 ;; ResolvEnv, NS -> Parser Result
 (define (parse-eval-one resolve-env ns)
-  ;; (eprintf "parse-eval-one: ~v\n" resolve-env) ;FIXME
   (>>= ask
     (lambda (parse-env)
       (try-one-maybe
