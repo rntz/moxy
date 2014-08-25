@@ -11,7 +11,7 @@
   return fail pmap1 pmap2 lift1 lift2 seq seq* lift
   >>= <* *> <$>
   try ask local
-  psum choice pfail peof
+  psum choice peof
   option optional option-maybe
   many many1 skip-many skip-many1 str-many str-many1
   sep-by sep-by1 sep-by1 end-by end-by1 sep-end-by sep-end-by1
@@ -146,7 +146,6 @@
   (-> any/c parser/c)
   (ok #f x))
 
-;;; FIXME: redundant with pfail
 (define ((fail msg) env str hardk softk ok)
   (softk (location str) msg))
 
@@ -225,10 +224,6 @@
             ok))])))
 
 (define choice (nary psum))
-
-;;; Parser that always fails soft.
-(define ((pfail error-msg) env str hardk softk ok)
-  (softk (location str) error-msg))
 
 ;;; Parser that expects end-of-input.
 (define (peof env str hardk softk ok)

@@ -107,9 +107,9 @@
           (for/list ([clause clauses])
             (match-define `(,clause-name ,clause-params ,clause-body) clause)
             (unless (symbol=? name clause-name)
-              (escape (pfail "fun clauses have varying names")))
+              (escape (fail "fun clauses have varying names")))
             (unless (= arity (length clause-params))
-              (escape (pfail "fun clauses have varying arity")))
+              (escape (fail "fun clauses have varying arity")))
             (list clause-params clause-body)))
         (return (decl:fun name arity case-branches))))))
 
