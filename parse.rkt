@@ -127,7 +127,7 @@
     ;;
     ;; TODO: shouldn't only tag & variable identifiers be allowed, and e.g.
     ;; module identifiers be disallowed?
-    (<$> expr:var (p-var p-var-id))))
+    (<$> expr:var (p-var p-any-id))))
 
 ;; Problem: precedence not taken into account. "let" does not have same
 ;; precedence as function application. Is this a real problem?
@@ -187,7 +187,7 @@
     ;; TODO: tag/ann patterns without parens afterwards, e.g. Nil
     (<$>
       pat:ann
-      p-caps-id
+      (p-var p-caps-id)
       ;; the eta is necessary to avoid circularity
       (option '() (eta (parens (listish p-pat)))))))
 
