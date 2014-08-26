@@ -28,7 +28,9 @@
 ;; TODO: explain interfaces & accessors
 
 
-(provide define-iface define-accessors define-accessor define-form record)
+(provide
+  define-iface define-accessors define-accessor define-form
+  record show-record)
 
 (define-for-syntax (make-define-form stx form fields ifaces methods)
   (with-syntax ([form form]
@@ -117,3 +119,23 @@
       #`(make-immutable-hash
           (let* ((name expr) ...)
             `((name . ,name) ...))))))
+
+;; Pretty-printing records.
+(define (show-record r [indent 0])
+  (define first #t)
+  (define pre (make-string (* 2 indent) #\space))
+  (for ([(key value) r]
+        #:unless (procedure? value))
+    (unless first (newline))
+    (printf "~a~a ~a " pre (if first "{" " ") (show key))
+    (set! first #f)
+    (if (hash? value)
+      (begin (newline) (show-record value (+ 1 indent)))
+      (printf "~a" (show value))))
+  (define procs (for/list ([(name value) r]
+                           #:when (procedure? value))
+                  name))
+  (if (null? procs)
+    (display " }")
+    (printf "\n~a& methods: ~a }" pre procs))
+  (when (= 0 indent) (newline)))

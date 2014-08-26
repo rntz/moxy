@@ -1,25 +1,15 @@
 #lang racket
 
 (provide
-  const show repr map_ flip partial nary unary
+  const map_ flip partial nary unary
   zip-with zip
   mkid mktemp
   matches? lambda-rec eta
   define-interface
-  foldl1 reduce dict-union hash-unions)
+  foldl1 reduce dict-union hash-unions
+  show repr printfln)
 
 (define (const x) (lambda _ x))
-
-;; (show x) shows x in human-readable form, with some nice abbreviations.
-;; (repr x) shows x in (read)-able form, without any nice abbreviations.
-;;
-;;  (repr '(quote foo)) --> "(quote foo)"
-;;  (show '(quote foo)) --> "'foo"
-;;
-;; Neither of them unnecessarily prefixes things with quotes, as print does by
-;; default. Neither will drop quotes around strings, as display does.
-(define (show x) (call-with-output-string (lambda (p) (print x p 1))))
-(define (repr x) (with-output-to-string (lambda () (write x))))
 
 (define (map_ f . xs) (apply map f xs) (void))
 
@@ -109,3 +99,21 @@
   (if (null? hashes) (hash)
     ;; relies on reduce not using its second argument if list is non-empty
     (reduce hashes (void) (lambda (x y) (dict-union x y combine)))))
+
+
+;; String formatting & IO
+
+;; (show x) shows x in human-readable form, with some nice abbreviations.
+;; (repr x) shows x in (read)-able form, without any nice abbreviations.
+;;
+;;  (repr '(quote foo)) --> "(quote foo)"
+;;  (show '(quote foo)) --> "'foo"
+;;
+;; Neither of them unnecessarily prefixes things with quotes, as print does by
+;; default. Neither will drop quotes around strings, as display does.
+(define (show x) (call-with-output-string (lambda (p) (print x p 1))))
+(define (repr x) (with-output-to-string (lambda () (write x))))
+
+(define (printfln fmt . args)
+  (apply printf fmt args)
+  (newline))
