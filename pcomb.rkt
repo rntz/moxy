@@ -8,7 +8,7 @@
 
 (provide
   string-stream stream-stream
-  return fail pmap1 pmap2 lift1 lift2 seq seq* lift
+  return fail pmap1 pmap2 lift1 lift2 seq seq* lift pdo
   >>= <* *> <$>
   try ask local
   psum choice peof
@@ -188,6 +188,14 @@
 
 (define (*> . as) (<$> last (seq as)))
 (define (<* . as) (<$> car (seq as)))
+
+(define-syntax pdo
+  (syntax-rules (<- let define)
+    [(_ p) p]
+    [(_ let x expr body ...) (match-let ((x expr)) (pdo body ...))]
+    [(_ define x expr body ...) (begin (define x expr) (pdo body ...))]
+    [(_ pat <- expr body ...) (>>= expr (match-lambda [pat (pdo body ...)]))]
+    [(_ expr body ...) (*> expr (pdo body ...))]))
 
 
 ;;; Special monadic operations: try, ask, local

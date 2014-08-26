@@ -97,21 +97,19 @@
 
 (define p-fun-clause (seq* p-var-id (parens p-params) (*> equals p-expr)))
 (define p-fun
-  (>>=
-    (begin-sep-by1 p-fun-clause bar)
-    (lambda (clauses)
-      (let/ec escape
-        (match-define `((,name ,params ,_) . ,_) clauses)
-        (define arity (length params))
-        (define case-branches
-          (for/list ([clause clauses])
-            (match-define `(,clause-name ,clause-params ,clause-body) clause)
-            (unless (symbol=? name clause-name)
-              (escape (fail "fun clauses have varying names")))
-            (unless (= arity (length clause-params))
-              (escape (fail "fun clauses have varying arity")))
-            (list clause-params clause-body)))
-        (return (decl:fun name arity case-branches))))))
+  (pdo clauses <- (begin-sep-by1 p-fun-clause bar)
+    (let/ec escape
+      (match-define `((,name ,params ,_) . ,_) clauses)
+      (define arity (length params))
+      (define case-branches
+        (for/list ([clause clauses])
+          (match-define `(,clause-name ,clause-params ,clause-body) clause)
+          (unless (symbol=? name clause-name)
+            (escape (fail "fun clauses have varying names")))
+          (unless (= arity (length clause-params))
+            (escape (fail "fun clauses have varying arity")))
+          (list clause-params clause-body)))
+      (return (decl:fun name arity case-branches)))))
 
 (define @decl:fun
   (record [parser p-fun]))
@@ -160,15 +158,14 @@
 
 (define @decl:open
   (record [parser
-            (>>= ask
-              (lambda (parse-env)
-                (<$> (unary decl:open)
-                  (pmap-maybe p-caps-id
-                    (lambda (name)
-                      (maybe-map (hash-lookup name (env-get @nodules parse-env))
-                        (lambda (x) `(,name ,x))))
-                    (lambda (name)
-                      (format "expected module name; got ~v" name))))))]))
+            (pdo parse-env <- ask
+              (<$> (unary decl:open)
+                (pmap-maybe p-caps-id
+                  (lambda (name)
+                    (maybe-map (hash-lookup name (env-get @nodules parse-env))
+                      (lambda (x) `(,name ,x))))
+                  (lambda (name)
+                    (format "expected module name; got ~v" name)))))]))
 
 (define builtin-@decls
   (hash

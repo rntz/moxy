@@ -61,8 +61,8 @@
         (indent-printf "tag ~a" name)
         (match (@var-tag-params info)
           [(Just params)
-            (printf "(~a)\n" (string-join (map symbol->string params) ", "))]
-          [_ (printf "\n")])]
+            (printfln "(~a)" (string-join (map symbol->string params) ", "))]
+          [_ (newline)])]
       [_ (indent-printf "Oh my, what have you done to ~a?!\n" name)])
     (if (hash-has? 'id info)
       (indent-printf "val ~a = ~a\n" name (show (eval (@var-id info) ns)))

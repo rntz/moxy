@@ -98,11 +98,10 @@
 (define (p-var-in id-parser parse-env)
   (choice
     (<$> var:local id-parser)
-    (>>= (try (<* (p-nodule-name-in parse-env) dot))
-      (lambda (x)
-        (match-define `(,_ ,nodule) x)
-        (<$> (partial var:qualified nodule)
-          (p-var-in id-parser (@nodule-parseExt nodule)))))))
+    (pdo
+      `(,_ ,nodule) <- (try (<* (p-nodule-name-in parse-env) dot))
+      (<$> (partial var:qualified nodule)
+        (p-var-in id-parser (@nodule-parseExt nodule))))))
 
 (define (p-var p) (>>= ask (partial p-var-in p)))
 
@@ -113,8 +112,8 @@
 ;; Note on precedence: Larger precedences bind tighter than smaller, and
 ;; right-associative binds tighter than left-associative.
 (define (p-expr-at prec)
-  (>>= (p-prefix-expr-at prec)
-    (lambda (e) (p-infix-expr prec e))))
+  (pdo e <- (p-prefix-expr-at prec)
+    (p-infix-expr prec e)))
 
 ;; This doesn't use `prec', but maybe in future it will?
 (define (p-prefix-expr-at prec)
@@ -140,44 +139,43 @@
 ;; should never parse as "(let x = 2 in x)(1,2,3)". I think this will never
 ;; happen in practice due to greedy-ness, but it's worrying.
 (define p-from-@exprs
-  (>>= ask                             ; grab the extensible parsing environment
-    (lambda (parse-env)
-      ;; Grab a token and look it up in @exprs. Fail soft if it's absent.
-      (try-one-maybe (lambda (t) (hash-lookup t (env-get @exprs parse-env)))))
+  (pdo
+    parse-env <- ask ;; grab the extensible parsing environment
+    ;; Grab a token and look it up in @exprs. Fail soft if it's absent.
+    x <- (try-one-maybe (lambda (t) (hash-lookup t (env-get @exprs parse-env))))
     ;; Run the parser we found in @exprs!
-    @expr-parser))
+    (@expr-parser x)))
 
 ;; Tries to parse an infix continuation for `left-expr' of precedence at least
 ;; `prec' (i.e. binding at least as tightly as `prec').
 (define (p-infix-expr prec left-expr)
   ;; TODO: should we have a separate @infix-ops?
   (option left-expr
-    (>>= ask
-      (lambda (parse-env)
-        (try-one-maybe
-          ;; Look for an infix operator associated with the token `t' whose
-          ;; precedence is at least `prec' (i.e. as tight or tighter-binding as
-          ;; what we're currently looking for).
-          (lambda (t) (maybe-filter
-                   (hash-lookup t (env-get @infixes parse-env))
-                   (lambda (x) (<= prec (@infix-precedence x)))))))
-      (lambda (ext)
-        ;; Pass off to their parser
-        (@infix-parser ext left-expr))
+    (pdo
+      parse-env <- ask
+      ext <- (try-one-maybe
+               ;; Look for an infix operator associated with the token `t' whose
+               ;; precedence is at least `prec' (i.e. as tight or
+               ;; tighter-binding as what we're currently looking for).
+               (lambda (t) (maybe-filter
+                        (hash-lookup t (env-get @infixes parse-env))
+                        (lambda (x) (<= prec (@infix-precedence x))))))
+      ;; Pass off to their parser
+      x <- (@infix-parser ext left-expr)
       ;; Try to keep parsing more operations afterward.
       ;;
       ;; Note: This handles left-associativity automatically. For
       ;; right-associativity, the parser we got from @infixes should parse its
       ;; right argument greedily, so that there's nothing left for us to parse
       ;; here (at its infixity, anyway).
-      (lambda (x) (p-infix-expr prec x)))))
+      (p-infix-expr prec x))))
 
 (define p-expr (p-expr-at 0))
 
 ;; Parses a pattern at a given precedence.
 (define (p-pat-at prec)
-  (>>= (p-prefix-pat-at prec)
-    (lambda (e) (p-infix-pat prec e))))
+  (pdo e <- (p-prefix-pat-at prec)
+    (p-infix-pat prec e)))
 
 (define (p-prefix-pat-at prec)
   (choice
@@ -194,41 +192,38 @@
       (option '() (eta (parens (listish p-pat)))))))
 
 (define p-from-@pats
-  (>>= ask                             ; grab the extensible parsing environment
-    (lambda (parse-env)
-      ;; Grab a token and look it up in @pats. Fail soft if it's absent.
-      (try-one-maybe (lambda (t) (hash-lookup t (env-get @pats parse-env)))))
+  (pdo
+    parse-env <- ask ;; grab the extensible parsing environment
+    ;; Grab a token and look it up in @pats. Fail soft if it's absent.
+    x <- (try-one-maybe (lambda (t) (hash-lookup t (env-get @pats parse-env))))
     ;; Run the parser we found in @pats!
-    @pat-parser))
+    (@pat-parser x)))
 
 (define (p-infix-pat prec left-pat)
   (option left-pat
-    (>>= ask
-      (lambda (parse-env)
-        (try-one-maybe
-          ;; Look for an infix pattern associated with token `t' whose
-          ;; precedence is at least `prec'.
-          (lambda (t) (maybe-filter
-                   (hash-lookup t (env-get @infix-pats parse-env))
-                   (lambda (x) (<= prec (@infix-pat-precedence x)))))))
-      (lambda (ext) (@infix-pat-parser ext left-pat))
+    (pdo
+      parse-env <- ask
+      ext <- (try-one-maybe
+               ;; Look for an infix pattern associated with token `t' whose
+               ;; precedence is at least `prec'.
+               (lambda (t) (maybe-filter
+                        (hash-lookup t (env-get @infix-pats parse-env))
+                        (lambda (x) (<= prec (@infix-pat-precedence x))))))
+      x <- (@infix-pat-parser ext left-pat)
       ;; Try to keep parsing more operations afterward.
-      (lambda (x) (p-infix-pat prec x)))))
+      (p-infix-pat prec x))))
 
 (define p-pat (p-pat-at 0))
 
 (define p-decl
-  (>>= ask
-    (lambda (parse-env)
-      (try-one-maybe
-        (lambda (t) (hash-lookup t (env-get @decls parse-env)))))
-    (lambda (ext)
-      ;; Pass off to its parser
-      (@decl-parser ext))))
+  (pdo
+    parse-env <- ask
+    ext <- (try-one-maybe
+             (lambda (t) (hash-lookup t (env-get @decls parse-env))))
+    ;; Pass off to its parser
+    (@decl-parser ext)))
 
 (define p-decls (many p-decl))
-
-;; TODO: p-toplevel-decl p-toplevel-decls
 
 
 ;; This is it, folks. This is what it's all for.
@@ -242,30 +237,27 @@
              [penv env-empty]
              [renv env-empty])
     (choice
-      (>>= (parse-eval-one resolve-env ns)
-        (lambda (result)
-          (let ([result-penv (result-parseExt result)]
-                [result-renv (result-resolveExt result)])
-            (local
-              (lambda (parse-env) (env-join parse-env result-penv))
-              (loop (env-join resolve-env result-renv)
-                    (env-join penv result-penv)
-                    (env-join renv result-renv))))))
+      (pdo result <- (parse-eval-one resolve-env ns)
+        (let ([result-penv (result-parseExt result)]
+              [result-renv (result-resolveExt result)])
+          (local (lambda (parse-env) (env-join parse-env result-penv))
+            (loop (env-join resolve-env result-renv)
+              (env-join penv result-penv)
+              (env-join renv result-renv)))))
       (eta (return (record [resolveExt renv] [parseExt penv]))))))
 
 ;; ResolvEnv, NS -> Parser Result
 (define (parse-eval-one resolve-env ns)
-  (>>= ask
-    (lambda (parse-env)
-      (try-one-maybe
-        (lambda (t)
-          (match (hash-lookup t (env-get @tops parse-env))
-            [(None) (maybe-map
-                      (hash-lookup t (env-get @decls parse-env))
-                      @top:@decl)]
-            [x x]))))
-    (lambda (ext)
-      (@top-parse-eval ext resolve-env ns))))
+  (pdo
+    parse-env <- ask
+    ext <- (try-one-maybe
+             (lambda (t)
+               (match (hash-lookup t (env-get @tops parse-env))
+                 [(None) (maybe-map
+                           (hash-lookup t (env-get @decls parse-env))
+                           @top:@decl)]
+                 [x x])))
+    (@top-parse-eval ext resolve-env ns)))
 
 
 ;; This has to go here rather than parse-builtins.rkt since we use it in

@@ -69,9 +69,7 @@
                   [debug toggle-debug!]
 
                   format
-                  [say (lambda (fmt . args)
-                         (apply printf fmt args)
-                         (display "\n"))]
+                  [say printfln]
                   [print (lambda (x) (write x) (display "\n"))]
 
                   [#:tag tag:True True]
