@@ -97,7 +97,9 @@
     (define (parse-eval-toks toks)
       (with-handlers ([(const #t)
                         (lambda (exn)
-                          (displayln (exn-message exn))
+                          ;; TODO: only display backtrace for internal errors -
+                          ;; but how?
+                          ((error-display-handler) (exn-message exn) exn)
                           (result:empty))])
         ((choice
            (<$> Result (<* (parse-eval resolve-env ns) peof))
