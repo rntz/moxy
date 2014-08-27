@@ -93,7 +93,14 @@
 
 ;; Module-qualified stuff
 ;; TODO: refactor this, it sucks
-;; TODO: A.B.x should *parse* but not *compile*
+;;
+;; FIXME: A.B.x should *parse* but not *compile*
+;; this leads to weirdness like:
+;;
+;;    val x = A.y
+;;
+;; if a module named A is not in scope, parse-eval-one will parse the above as
+;; (val x A), that is, bind x to the value of the tag A, with ".y" as leftover.
 
 ;; returns (name nodule) if it succeeds
 (define (p-nodule-name-in parse-env)
@@ -107,11 +114,12 @@
 
 (define (p-var-in id-parser parse-env)
   (choice
-    (<$> var:local id-parser)
+    ;; we are eager: we prefer qualified to unqualified names
     (pdo
       `(,_ ,nodule) <- (try (<* (p-nodule-name-in parse-env) dot))
       (<$> (partial var:qualified nodule)
-        (p-var-in id-parser (@nodule-parseExt nodule))))))
+        (p-var-in id-parser (@nodule-parseExt nodule))))
+    (<$> var:local id-parser)))
 
 (define (p-var p) (>>= ask (partial p-var-in p)))
 
