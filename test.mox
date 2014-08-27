@@ -1,0 +1,30 @@
+# syntax tests
+val zero = 0
+val four = 2 + 2
+val id = \(x) x
+val namewithnumb3rs = "yup"
+
+fun id1(x) = x
+fun double(x) = x + x
+fun quadruple(x) = double(double(x))
+
+fun fac1(n) = case n | 0 -> 1
+                     | _ -> n * fac1(n-1)
+
+fun fac(0) = 1
+  | fac(n) = n * fac(n-1)
+
+rec fun even(0) = True
+      | even(n) = not(odd(n-1))
+and fun odd(0) = False
+      | odd(n) = not(even(n-1))
+
+val zero = if True then 0 else 1
+val one = if False then 0 else 1
+
+# computation tests
+val 0 = id(0)
+val 8 = quadruple(2)
+val 0 = zero
+val 1 = one
+val 120 = fac(5)
