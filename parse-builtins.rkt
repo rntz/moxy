@@ -417,7 +417,7 @@
         (lambda (name)
           (define result
             (parse-eval-file
-              (format "~a.cvy" (string-downcase (symbol->string name)))
+              (format "~a.mox" (string-downcase (symbol->string name)))
               builtin-parse-env
               (engine-builtin-resolve-env eng)
               eng))
