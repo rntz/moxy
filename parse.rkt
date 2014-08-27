@@ -235,8 +235,11 @@
     ;; Pass off to its parser
     (@decl-parser ext)))
 
-;; FIXME: doesn't account for decls modifying the parse environment!
-(define p-decls (many p-decl))
+(define p-decls
+  (option '()
+    (pdo d <- p-decl
+      (local-env (decl-parseExt d)
+        (<$> (partial cons d) (eta p-decls))))))
 
 
 ;; This is it, folks. This is what it's all for.

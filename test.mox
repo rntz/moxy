@@ -51,6 +51,6 @@ module B {
 val 1 = B.C.x
 val 1 = let open B in C.x
 val 1 = let open B.C in x
-# val 1 = let open B
-#             open C
-#         in x
+val 1 = let open B
+            open C
+        in x
