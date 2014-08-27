@@ -127,9 +127,8 @@
 ;; Maps tokens to (@top)s.
 (define-ExtPoint @tops hash-union (hash))
 (define-iface @top
-  ;; ResolveEnv, NS -> Parser Result
-  ;; ns is the Racket namespace in which we eval code.
-  (parse-eval resolve-env ns))
+  ;; ResolveEnv, Engine -> Parser Result
+  (parse-eval resolve-env engine))
 
 ;; Maps symbols to (@nodule)s
 (define-ExtPoint @nodules hash-union (hash))

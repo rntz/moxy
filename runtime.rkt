@@ -12,7 +12,15 @@
 ;; set of language primitives we actually need, but racket's baroque module and
 ;; namespace system makes that frustratingly complicated.
 
-(provide make-runtime)
+(provide
+  make-runtime
+  engine engine? make-engine engine-namespace engine-builtin-resolve-env)
+
+;; we need the namespace to pass to 'eval.
+;; we need builtin-resolve-env when we go to load a new file: it needs to see
+;; only the builtin bindings.
+(define-struct engine (namespace builtin-resolve-env)
+  #:prefab)
 
 (define-namespace-anchor anchor)
 (define anchor-ns (namespace-anchor->empty-namespace anchor))
@@ -105,4 +113,4 @@
                   [hashAlter hash-alter]
                   [hashMap hash-map]
                   [hashUnion hash-union]))])
-    (values env ns)))
+    (values env (make-engine ns env))))

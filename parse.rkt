@@ -11,9 +11,10 @@
 (require "lex.rkt")
 (require "pcomb.rkt")
 (require "core-forms.rkt")
+(require "runtime.rkt")                 ;for engine-namespace
 
 (provide
-  parse
+  parse parse-eval-file
   keyword keysym comma dot semi equals bar p-end p-optional-end
   lparen rparen lbrace rbrace lbrack rbrack
   parens braces brackets
@@ -37,6 +38,15 @@
     (lambda (loc msg) (error 'parse "hard error at pos ~a: ~a" loc msg))
     (lambda (loc msg) (error 'parse "soft error at pos ~a: ~a" loc msg))
     (lambda (_ r) r)))
+
+;; Path, ParseEnv, ResolveEnv, Engine -> Result
+(define (parse-eval-file filepath parse-env resolve-env eng)
+  (call-with-input-file filepath
+    (lambda (port)
+      (debugf "Loading ~a...\n" filepath)
+      (define x (parse (parse-eval resolve-env eng) parse-env port))
+      (debugf "done!")
+      x)))
 
 
 ;; Utility thingies
@@ -231,13 +241,13 @@
 ;; It also feels weird (to me). It threads the evaluation through the parser
 ;; rather than repeatedly parsing and then evaluating.
 ;;
-;; ResolvEnv, NS -> Parser Result
-(define (parse-eval resolve-env ns)
+;; ResolvEnv, Engine -> Parser Result
+(define (parse-eval resolve-env eng)
   (let loop ([resolve-env resolve-env]
              [penv env-empty]
              [renv env-empty])
     (choice
-      (pdo result <- (parse-eval-one resolve-env ns)
+      (pdo result <- (parse-eval-one resolve-env eng)
         (let ([result-penv (result-parseExt result)]
               [result-renv (result-resolveExt result)])
           (local (lambda (parse-env) (env-join parse-env result-penv))
@@ -246,8 +256,8 @@
               (env-join renv result-renv)))))
       (eta (return (record [resolveExt renv] [parseExt penv]))))))
 
-;; ResolvEnv, NS -> Parser Result
-(define (parse-eval-one resolve-env ns)
+;; ResolvEnv, Engine -> Parser Result
+(define (parse-eval-one resolve-env eng)
   (pdo
     parse-env <- ask
     ext <- (try-one-maybe
@@ -257,7 +267,7 @@
                            (hash-lookup t (env-get @decls parse-env))
                            @top:@decl)]
                  [x x])))
-    (@top-parse-eval ext resolve-env ns)))
+    (@top-parse-eval ext resolve-env eng)))
 
 
 ;; This has to go here rather than parse-builtins.rkt since we use it in
@@ -265,7 +275,7 @@
 (define (@top:@decl decl)
   (record [parse-eval (parse-eval-decl (@decl-parser decl))]))
 
-(define ((parse-eval-decl decl-parser) resolve-env ns)
+(define ((parse-eval-decl decl-parser) resolve-env eng)
   (>>= decl-parser
     (lambda (decl)
       (debugf-pretty " * AST:" (decl-sexp decl))
@@ -274,7 +284,7 @@
            ,@(for/list ([id-code (decl-compile decl resolve-env)])
                `(define ,@id-code))))
       (debugf-pretty " * IR:" code)
-      (eval code ns)
+      (eval code (engine-namespace eng))
       (return (result:decl decl)))))
 
 ;; (result:decl Decl)

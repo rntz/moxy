@@ -9,6 +9,7 @@
 (require "pcomb.rkt")
 (require "parse.rkt")
 (require "core-forms.rkt")
+(require "runtime.rkt")                 ;for engine-builtin-resolve-env
 
 ;; Utilities
 (define p-var-ids (listish p-var-id))
@@ -408,13 +409,28 @@
 ;; 'module' ID '{' TOPS '}'
 (define @top:nodule
   (record
-    [(parse-eval resolve-env ns)
+    [(parse-eval resolve-env eng)
      (<$> result:nodule
-       p-caps-id (braces (parse-eval resolve-env ns)))]))
+       p-caps-id (braces (parse-eval resolve-env eng)))]))
+
+;; import Name
+(define @top:import
+  (record
+    [(parse-eval resolve-env eng)
+      (>>= p-caps-id
+        (lambda (name)
+          (define result
+            (parse-eval-file
+              (format "~a.cvy" (string-downcase (symbol->string name)))
+              builtin-parse-env
+              (engine-builtin-resolve-env eng)
+              eng))
+          (return (result:nodule name result))))]))
 
 (define builtin-@tops
   (hash
-    (TID "module")  @top:nodule))
+    (TID "module")  @top:nodule
+    (TID "import")  @top:import))
 
 
 ;; -- The default/built-in parser extensions --

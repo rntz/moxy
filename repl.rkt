@@ -36,21 +36,21 @@
 (define-tag Result result)
 (define-tag Expr expr)
 
-(define (show-result ns result [indent 0])
-  (show-@nodules ns (env-get @nodules (result-parseExt result)) indent)
-  (show-@vars ns (env-get @vars (result-resolveExt result)) indent))
+(define (show-result eng result [indent 0])
+  (show-@nodules eng (env-get @nodules (result-parseExt result)) indent)
+  (show-@vars eng (env-get @vars (result-resolveExt result)) indent))
 
-(define (show-@nodules ns nodules indent)
+(define (show-@nodules eng nodules indent)
   (define prefix (string->immutable-string (make-string (* 2 indent) #\space)))
   (define (indent-printf fmt . args)
     (apply printf (string-append prefix fmt) args))
   (for ([(name nodule) nodules])
     ;; TODO: empty modules should display as "module NAME {}"
     (indent-printf "module ~a {\n" name)
-    (show-result ns (@nodule->result nodule) (+ 1 indent))
+    (show-result eng (@nodule->result nodule) (+ 1 indent))
     (indent-printf "}\n")))
 
-(define (show-@vars ns vars indent)
+(define (show-@vars eng vars indent)
   (define prefix (string->immutable-string (make-string (* 2 indent) #\space)))
   (define (indent-printf fmt . args)
     (apply printf (string-append prefix fmt) args))
@@ -65,14 +65,15 @@
           [_ (newline)])]
       [_ (indent-printf "Oh my, what have you done to ~a?!\n" name)])
     (if (hash-has? 'id info)
-      (indent-printf "val ~a = ~a\n" name (show (eval (@var-id info) ns)))
+      (indent-printf "val ~a = ~a\n" name (show (eval (@var-id info)
+                                                      (engine-namespace eng))))
       (indent-printf "I don't even know what value ~a has!\n" name))))
 
 ;; TODO: refactor this
 (define (repl [hack #t])
   (when hack
     (read-line)) ;; crude hack to make this work inside the racket repl
-  (define-values (resolve-env ns) (make-runtime))
+  (define-values (resolve-env eng) (make-runtime))
   (let eval-next ([parse-env builtin-parse-env]
                   [resolve-env resolve-env]
                   [toks '()])
@@ -87,12 +88,12 @@
           (debugf-pretty " * AST:" (expr-sexp e))
           (define code (expr-compile e resolve-env))
           (debugf-pretty " * IR:" code)
-          (define value (eval code ns))
+          (define value (eval code (engine-namespace eng)))
           (unless (void? value)
             (printf "~a\n" (show value)))
           (result:empty)]
         [(Result result)
-          (show-result ns result)
+          (show-result eng result)
           result]))
     (define (parse-eval-toks toks)
       (with-handlers ([(const #t)
@@ -102,7 +103,7 @@
                           ((error-display-handler) (exn-message exn) exn)
                           (result:empty))])
         ((choice
-           (<$> Result (<* (parse-eval resolve-env ns) peof))
+           (<$> Result (<* (parse-eval resolve-env eng) peof))
            (<$> Expr (<* p-expr peof)))
           parse-env
           (stream-stream (in-list toks))

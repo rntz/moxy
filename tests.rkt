@@ -21,7 +21,7 @@
       (begin (read-line) (read-line)))))
 
 (define (test-expr [what #f])
-  (define-values (resolve-env ns) (make-runtime))
+  (define-values (resolve-env eng) (make-runtime))
   (define ast (doparse p-expr what))
   (printfln "parsed: ~a" (show (expr-sexp ast)))
   (define code (expr-compile ast resolve-env))
