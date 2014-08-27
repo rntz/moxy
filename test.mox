@@ -15,9 +15,9 @@ fun fac(0) = 1
   | fac(n) = n * fac(n-1)
 
 rec fun even(0) = True
-      | even(n) = not(odd(n-1))
+      | even(n) = odd(n-1)
 and fun odd(0) = False
-      | odd(n) = not(even(n-1))
+      | odd(n) = even(n-1)
 
 val zero = if True then 0 else 1
 val one = if False then 0 else 1

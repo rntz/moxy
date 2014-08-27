@@ -46,7 +46,7 @@
 
 
 ;; -- decls --
-(provide decl:val decl:fun decl:rec decl:tag)
+(provide decl:val decl:fun decl:begin decl:rec decl:tag)
 
 ;; (val Pat Expr)
 (define-decl val (pat expr)
@@ -115,10 +115,27 @@
 (define @decl:fun
   (record [parser p-fun]))
 
+;; (begin [Decl])
+;; currently exists only for convenience; not exposed in language
+;; expr:let uses this
+(define-decl begin (decls)
+  [(sexp) `(begin ,@(map decl-sexp decls))]
+  [parseExt (env-join* (map decl-parseExt decls))]
+  [resolveExt (env-join* (map decl-resolveExt decls))]
+  [(compile env)
+    (let loop ([decls decls]
+               [accum '()]
+               [env env])
+      (match decls
+        ['() (append* (reverse accum))]
+        [(cons d ds)
+          (loop ds (cons (decl-compile d env) accum)
+            (env-join env (decl-resolveExt d)))]))])
+
 ;; (rec [Decl])
 (define-decl rec (decls)
   [(sexp) `(rec ,@(map decl-sexp decls))]
-  [parseExt env-empty]
+  [parseExt (env-join* (map decl-parseExt decls))]
   [resolveExt (env-join* (map decl-resolveExt decls))]
   ;; TODO: we should check for definition cycles somehow!
   ;; if we compiled to IR instead of to Racket this might be easier.
@@ -212,14 +229,11 @@
 
 ;; (let [Decl] Expr)
 (define-expr let (decls exp)
+  [bindings (decl:begin decls)]
   [(sexp) `(let ,(map decl-sexp decls) ,(expr-sexp exp))]
   [(compile env)
-    (let loop ([decls decls] [env env])
-      (match decls
-        ['() (expr-compile exp env)]
-        [(cons d ds)
-          `(letrec ,(decl-compile d env)
-             ,(loop ds (env-join env (decl-resolveExt d))))]))])
+    `(letrec ,(decl-compile bindings env)
+       ,(expr-compile exp (env-join env (decl-resolveExt bindings))))])
 
 (define @expr:let
   (record [parser (<$> expr:let p-decls (*> (keyword "in") p-expr))]))
