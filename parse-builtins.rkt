@@ -207,9 +207,7 @@
 
 ;; for now, lambdas don't get multiple branches, but you can pattern-match.
 (define @expr:lambda
-  (record [parser (<$> expr:lambda
-                    (parens p-params)
-                    (<* p-expr p-optional-end))]))
+  (record [parser (<$> expr:lambda (parens p-params) p-expr)]))
 
 ;; (let [Decl] Expr)
 (define-expr let (decls exp)
@@ -223,9 +221,7 @@
              ,(loop ds (env-join env (decl-resolveExt d))))]))])
 
 (define @expr:let
-  (record [parser (<$> expr:let
-                    (<* p-decls (keyword "in"))
-                    (<* p-expr p-optional-end))]))
+  (record [parser (<$> expr:let p-decls (*> (keyword "in") p-expr))]))
 
 ;; (if Expr Expr Expr)
 (define-expr if (subject then else)
@@ -259,8 +255,7 @@
   ;; consider e.g. (case (case x ...) ...)
   (record [parser (<$> expr:case
                     p-expr
-                    (<* (many (*> bar (seq* p-pat (*> (keysym "->") p-expr))))
-                        p-optional-end))]))
+                    (many (*> bar (seq* p-pat (*> (keysym "->") p-expr)))))]))
 
 (define builtin-@exprs
   (hash

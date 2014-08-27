@@ -15,7 +15,7 @@
 
 (provide
   parse parse-eval-file
-  keyword keysym comma dot semi equals bar p-end p-optional-end
+  keyword keysym comma dot semi equals bar
   lparen rparen lbrace rbrace lbrack rbrack
   parens braces brackets
   p-str p-num p-any-id p-id p-var-id p-caps-id p-var
@@ -58,9 +58,6 @@
 (define semi (keysym ";"))
 (define equals (keysym "="))
 (define bar (keysym "|"))
-
-(define p-end (keyword "end"))
-(define p-optional-end (optional p-end))
 
 (define lparen (expect TLPAREN)) (define rparen (expect TRPAREN))
 (define lbrace (expect TLBRACE)) (define rbrace (expect TRBRACE))
