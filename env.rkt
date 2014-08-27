@@ -205,7 +205,7 @@
 (provide
   define-var var var-sexp var-resolve
   define-expr expr expr-compile expr-sexp
-  define-decl decl decl-sexp decl-resolveExt decl-compile
+  define-decl decl decl-sexp decl-parseExt decl-resolveExt decl-compile
   define-pat pat pat-sexp pat-resolveExt pat-idents pat-compile
   define-result result result-resolveExt result-parseExt)
 

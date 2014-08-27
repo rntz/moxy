@@ -156,13 +156,6 @@
   [parseExt (@nodule-parseExt nodule)]
   [(compile env) '()])
 
-;; BUG: FIXME:
-;;
-;;     module A { module B { val x = 2 } }
-;;     open A
-;;     open B
-;;
-;; fails to open A.B. (the second open fails)
 (define p-decl-open
   (pdo
     parse-env <- ask

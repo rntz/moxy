@@ -288,4 +288,4 @@
 ;; (result:decl Decl)
 (define-result decl (decl)
   [resolveExt (decl-resolveExt decl)]
-  [parseExt env-empty])
+  [parseExt (decl-parseExt decl)])
