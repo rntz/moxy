@@ -1,9 +1,9 @@
 * Need to do
 - Make up a name for the language
-- Expose parser-combinators to MLOID
+- Expose parser-combinators to Moxy
   - syntax: f@(x,y) = (<$> f x y)
     @x = pure x?
-- How can MLOID generate racket code?
+- How can Moxy generate racket code?
 - Implement syntax-extension forms
 - Investigate pattern-matching calculi for inspiration
 

@@ -127,7 +127,6 @@
           (get-expr '() '() 0)]
         [(NeedMore accum paren-level)
           ;; Grab a line and keep looking for the semi
-          ;;(printf (if (null? accum) "MLOID: " "   ... "))
           (printf (if (null? accum) "- " "= "))
           (define line
             ;; TODO: check behavior inside racket repl.
