@@ -5,6 +5,7 @@
 - How can Moxy generate racket code?
 - Implement syntax-extension forms
 - Investigate pattern-matching calculi for inspiration
+- Code (quasi-)quoting
 
 * Would be nice
 - Semicolons that work both in repl and in files
