@@ -18,7 +18,8 @@
   keyword keysym comma dot semi equals bar
   lparen rparen lbrace rbrace lbrack rbrack
   parens braces brackets
-  p-str p-num p-any-id p-id p-var-id p-caps-id p-var
+  p-str p-num p-any-id p-id p-var-id p-caps-id
+  p-qualified p-var
   listish
   ;; TODO: p-pat
   p-expr p-expr-at p-prefix-expr-at p-infix-expr
@@ -89,36 +90,28 @@
 
 
 ;; Module-qualified stuff
-;; TODO: refactor this, it sucks
-;;
-;; FIXME: A.B.x should *parse* but not *compile*
-;; this leads to weirdness like:
-;;
-;;    val x = A.y
-;;
-;; if a module named A is not in scope, parse-eval-one will parse the above as
-;; (val x A), that is, bind x to the value of the tag A, with ".y" as leftover.
 
-;; returns (name nodule) if it succeeds
-(define (p-nodule-name-in parse-env)
-  ;; TODO: better error messages indicating the context in which we were looking
-  ;; for the module name
-  (try (pmap-maybe p-caps-id
-         (lambda (name)
-           (maybe-map (hash-lookup name (env-get @nodules parse-env))
-             (lambda (nodule) `(,name ,nodule))))
-         (lambda (t) (format "expected module name; got ~v" t)))))
+;; returns (path x)
+;; where path is a list of symbols
+;; and x is whatever id-parser returned
+(define (p-qualified id-parser)
+  (seq* (many (try (<* p-caps-id dot))) id-parser))
 
-(define (p-var-in id-parser parse-env)
-  (choice
-    ;; we are eager: we prefer qualified to unqualified names
-    (pdo
-      `(,_ ,nodule) <- (try (<* (p-nodule-name-in parse-env) dot))
-      (<$> (partial var:qualified nodule)
-        (p-var-in id-parser (@nodule-parseExt nodule))))
-    (<$> var:local id-parser)))
+(define (qualify-var parse-env path name)
+  (match path
+    ['() (var:local name)]
+    [(cons nodule-name rest)
+      (match (hash-lookup nodule-name (env-get @nodules parse-env))
+        [(Just nodule)
+          (var:qualified nodule
+            (qualify-var (@nodule-parseExt nodule) rest name))]
+        [(None) (var:unbound (foldr cons path name))])]))
 
-(define (p-var p) (>>= ask (partial p-var-in p)))
+(define (p-var id-parser)
+  (pdo
+    parse-env <- ask
+    `(,path ,name) <- (p-qualified id-parser)
+    (return (qualify-var parse-env path name))))
 
 
 ;; Parses an expression at a given precedence (i.e. the longest expression that

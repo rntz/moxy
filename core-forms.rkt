@@ -9,7 +9,7 @@
 
 (provide
   @var:var @var:ctor @vars-var @vars-ctor
-  var:local var:qualified
+  var:local var:unbound var:qualified
   expr:var expr:lit expr:racket
   pat:lit pat:var pat:vector pat:ann)
 
@@ -30,10 +30,14 @@
   [(resolve env or-else)
     (hash-get name (env-get @vars env) or-else)])
 
-(define-var qualified (nodule name)
-  [(sexp) (cons (@nodule-name nodule) (var-sexp name))]
+(define-var unbound (name)
+  [(sexp) `(unbound ,name)]
+  [(resolve env or-else) (or-else)])
+
+(define-var qualified (nodule var)
+  [(sexp) (cons (@nodule-name nodule) (var-sexp var))]
   [(resolve env or-else)
-    (var-resolve name (@nodule-resolveExt nodule) or-else)])
+    (var-resolve var (@nodule-resolveExt nodule) or-else)])
 
 ;; - exprs -
 (define-expr var (var)                 ;var -> expr

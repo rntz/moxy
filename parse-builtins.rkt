@@ -161,6 +161,7 @@
   (record [parser
             (pdo parse-env <- ask
               (<$> (unary decl:open)
+                ;; FIXME: should parse a qualified module name
                 (pmap-maybe p-caps-id
                   (lambda (name)
                     (maybe-map (hash-lookup name (env-get @nodules parse-env))
