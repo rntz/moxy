@@ -28,3 +28,29 @@ val 8 = quadruple(2)
 val 0 = zero
 val 1 = one
 val 120 = fac(5)
+
+val True = even(2)
+val False = odd(2)
+val False = even(3)
+val True = odd(3)
+
+# module tests
+module A {
+  val x = 3
+}
+
+val 3 = A.x
+val 3 = let open A in x
+
+module B {
+  module C {
+    val x = 1
+  }
+}
+
+val 1 = B.C.x
+# val 1 = let open B in C.x
+# val 1 = let open B.C in x
+# val 1 = let open B
+#             open C
+#         in x
