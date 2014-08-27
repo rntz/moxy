@@ -67,6 +67,9 @@
                 ;;     - if N then 0 else 1;
                 ;;     0
                 ;;     - # wtf?
+                ;;
+                ;; FIXME: fails if our current directory isn't where values.rkt
+                ;; etc. are! :( :( :(
                 (namespace-attach-module anchor-ns "values.rkt")
                 (namespace-attach-module anchor-ns "env.rkt")
                 (namespace-require "values.rkt")
