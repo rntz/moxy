@@ -1,0 +1,3 @@
+#!/bin/sh
+# counts lines of code, ignoring whitespace & comments
+cat *.rkt | egrep -v '^ *(;.*)?$' | wc -l
