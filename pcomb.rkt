@@ -274,6 +274,12 @@
 
 (define (between pre post x) (*> pre (<* x post)))
 
+;; Parser a, (a -> Maybe b), a -> String -> Parser b
+;;
+;; (pmap-maybe p f m) runs p, calling f on its result x. If f returns (Just r),
+;; we return r. Otherwise we fail, calling (m x) to generate an error message.
+;;
+;; Consumes input iff p consumes.
 (define ((pmap-maybe parser func msgf) env str hardk softk ok)
   (let ([loc (location str)])
     (parser env str hardk softk
@@ -284,13 +290,6 @@
 
 (define (pfilter parser pred msgf)
   (pmap-maybe parser (lambda (x) (if (pred x) (Just x) None)) msgf))
-
-;; (define ((pfilter parser msgf pred) env str hardk softk ok)
-;;   (let ([loc (location str)])
-;;     (parser env str hardk softk
-;;       (lambda (ate res)
-;;         (if (pred res) (ok ate res)
-;;           ((if ate hardk softk) loc (msgf res)))))))
 
 
 ;;; Useful primitives
