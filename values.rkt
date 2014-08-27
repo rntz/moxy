@@ -161,6 +161,9 @@
   tag:L L L?
   tag:R R R?
   tag:True True True? tag:False False False? truthy? falsey? truthify
+  tag:Ok Ok Ok? Ok-value
+  tag:Err Err Err? Err-value
+  either
   tag:Just Just Just? Just-value
   tag:None None None?
   maybe? maybe from-maybe maybe-bind maybe-map maybe-filter
@@ -182,6 +185,15 @@
 (define (truthify x)
   (if (boolean? x) (if x True False)
     (error "never call truthify on a non-boolean!")))
+
+;; either
+(define-tag Ok value)
+(define-tag Err value)
+
+(define (either v on-ok on-err)
+  (match v
+    [(Ok v) (on-ok v)]
+    [(Err v) (on-err v)]))
 
 ;; maybe
 (define-tag Just value)

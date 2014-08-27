@@ -98,14 +98,14 @@
   (seq* (many (try (<* p-caps-id dot))) id-parser))
 
 (define (qualify-var parse-env path name)
-  (match path
-    ['() (var:local name)]
-    [(cons nodule-name rest)
-      (match (hash-lookup nodule-name (env-get @nodules parse-env))
-        [(Just nodule)
-          (var:qualified nodule
-            (qualify-var (@nodule-parseExt nodule) rest name))]
-        [(None) (var:unbound (foldr cons path name))])]))
+  (if (null? path) (var:local name)
+    (match (resolve-nodule-path parse-env path)
+      [(Ok nodule)
+        ;; TODO: include entire path in var for better pretty-printed AST
+        (var:qualified nodule (var:local name))]
+      [(Err (list parse-env prefix suffix))
+        ;; TODO: better error message that indicates which module wasn't bound
+        (var:unbound (foldr cons name path))])))
 
 (define (p-var id-parser)
   (pdo

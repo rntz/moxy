@@ -150,24 +150,31 @@
                     (option-maybe (parens (listish p-var-id))))]))
 
 ;; TODO: more powerful imports (qualifying, renaming, etc.)
-;; (open Nodule)
-(define-decl open (name nodule)
-  [(sexp) `(open ,name)]
+(define-decl open (path nodule)
+  [(sexp) `(open ,path)]
   [resolveExt (@nodule-resolveExt nodule)]
   [parseExt (@nodule-parseExt nodule)]
   [(compile env) '()])
 
-(define @decl:open
-  (record [parser
-            (pdo parse-env <- ask
-              (<$> (unary decl:open)
-                ;; FIXME: should parse a qualified module name
-                (pmap-maybe p-caps-id
-                  (lambda (name)
-                    (maybe-map (hash-lookup name (env-get @nodules parse-env))
-                      (lambda (x) `(,name ,x))))
-                  (lambda (name)
-                    (format "expected module name; got ~v" name)))))]))
+;; BUG: FIXME:
+;;
+;;     module A { module B { val x = 2 } }
+;;     open A
+;;     open B
+;;
+;; fails to open A.B. (the second open fails)
+(define p-decl-open
+  (pdo
+    parse-env <- ask
+    `(,path ,name) <- (p-qualified p-caps-id)
+    let path (append path (list name))
+    (match (resolve-nodule-path parse-env path)
+      [(Ok nodule) (return (decl:open path nodule))]
+      [(Err _)
+        ;; TODO: better error message using information from Err
+        (fail (format "unbound module: ~a" path))])))
+
+(define @decl:open (record [parser p-decl-open]))
 
 (define builtin-@decls
   (hash

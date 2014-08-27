@@ -88,7 +88,8 @@
 
   @nodules @nodules-join @nodules-empty
   define-@nodule @nodule @nodule-name @nodule-resolveExt @nodule-parseExt
-  @nodules-nodule @nodule->result)
+  @nodules-nodule @nodule->result
+  resolve-nodule-path)
 
 ;; Maps tokens to (@expr)s
 (define-ExtPoint @exprs hash-union (hash))
@@ -148,6 +149,21 @@
 
 ;; hack that takes advantage of nodules satisfying the result interface
 (define (@nodule->result nodule) nodule)
+
+;; returns (Ok nodule)
+;; or (Err (parse-env path-prefix path-suffix))
+;; assumes path is non-empty
+(define (resolve-nodule-path parse-env path)
+  (when (null? path) (error 'resolve-nodule-path "can't resolve empty path"))
+  (let loop ([parse-env parse-env]
+             [prev '()]
+             [next path])
+    (match-define (cons name rest) next)
+    (match (hash-lookup name (env-get @nodules parse-env))
+      [(Just nodule) (if (null? rest)
+                       (Ok nodule)
+                       (loop (@nodule-parseExt nodule) (cons name prev) rest))]
+      [(None) (Err `(,parse-env ,(reverse prev) ,next))])))
 
 
 ;; -- Built-in ResolveEnv extension points --
