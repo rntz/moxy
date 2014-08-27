@@ -15,6 +15,7 @@
 
 (provide
   parse parse-eval-file
+  local-env
   keyword keysym comma dot semi equals bar
   lparen rparen lbrace rbrace lbrack rbrack
   parens braces brackets
@@ -51,6 +52,9 @@
 
 
 ;; Utility thingies
+(define (local-env env p)
+  (local (lambda (parse-env) (env-join parse-env env)) p))
+
 (define (keyword id) (expect (TID id)))
 (define (keysym id) (expect (TSYM id)))
 
@@ -231,6 +235,7 @@
     ;; Pass off to its parser
     (@decl-parser ext)))
 
+;; FIXME: doesn't account for decls modifying the parse environment!
 (define p-decls (many p-decl))
 
 
@@ -248,7 +253,7 @@
       (pdo result <- (parse-eval-one resolve-env eng)
         (let ([result-penv (result-parseExt result)]
               [result-renv (result-resolveExt result)])
-          (local (lambda (parse-env) (env-join parse-env result-penv))
+          (local-env result-penv
             (loop (env-join resolve-env result-renv)
               (env-join penv result-penv)
               (env-join renv result-renv)))))

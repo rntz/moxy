@@ -119,7 +119,7 @@
 ;; currently exists only for convenience; not exposed in language
 ;; expr:let uses this
 (define-decl begin (decls)
-  [(sexp) `(begin ,@(map decl-sexp decls))]
+  [(sexp) `(,@(map decl-sexp decls))]
   [parseExt (env-join* (map decl-parseExt decls))]
   [resolveExt (env-join* (map decl-resolveExt decls))]
   [(compile env)
@@ -144,6 +144,8 @@
       (apply append (map (lambda (x) (decl-compile x env)) decls)))])
 
 (define @decl:rec
+  ;; NB. This doesn't allow the decls to see each other's parse extensions.
+  ;; TODO: is this the right behavior?
   (record [parser (<$> decl:rec (sep-by1 p-decl (keyword "and")))]))
 
 ;; (tag name:Symbol params:(Maybe [Symbol]))
@@ -227,16 +229,22 @@
 (define @expr:lambda
   (record [parser (<$> expr:lambda (parens p-params) p-expr)]))
 
-;; (let [Decl] Expr)
-(define-expr let (decls exp)
-  [bindings (decl:begin decls)]
-  [(sexp) `(let ,(map decl-sexp decls) ,(expr-sexp exp))]
+;; (let Decl Expr)
+(define-expr let (decl exp)
+  [(sexp) `(let ,(decl-sexp decl) ,(expr-sexp exp))]
   [(compile env)
-    `(letrec ,(decl-compile bindings env)
-       ,(expr-compile exp (env-join env (decl-resolveExt bindings))))])
+    `(letrec ,(decl-compile decl env)
+       ,(expr-compile exp (env-join env (decl-resolveExt decl))))])
+
+(define p-let
+  (pdo
+    decls <- (<* p-decls (keyword "in"))
+    let d (decl:begin decls)
+    (<$> (partial expr:let d)
+      (local-env (decl-parseExt d) p-expr))))
 
 (define @expr:let
-  (record [parser (<$> expr:let p-decls (*> (keyword "in") p-expr))]))
+  (record [parser p-let]))
 
 ;; (if Expr Expr Expr)
 (define-expr if (subject then else)
