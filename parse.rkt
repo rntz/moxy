@@ -19,11 +19,12 @@
   keyword keysym comma dot semi equals bar
   lparen rparen lbrace rbrace lbrack rbrack
   parens braces brackets
-  p-str p-num p-any-id p-id p-var-id p-caps-id
+  p-str p-num p-lit
+  p-any-id p-id p-var-id p-caps-id
   p-qualified p-var
   listish
   ;; TODO: p-pat
-  p-expr p-expr-at p-prefix-expr-at p-infix-expr
+  p-expr p-expr-at p-prefix-expr-at p-atomic-expr p-infix-expr
   p-pat p-pat-at p-prefix-pat-at p-infix-pat
   p-decl p-decls
   parse-eval parse-eval-one)
@@ -74,6 +75,8 @@
 
 (define p-str (<$> TSTR-value (satisfy TSTR?)))
 (define p-num (<$> TNUM-value (satisfy TNUM?)))
+(define p-lit (choice p-str p-num))
+
 (define p-any-id (<$> (compose string->symbol TID-value) (satisfy TID?)))
 
 (define rx-caps-ident #rx"^[A-Z]")
@@ -129,9 +132,12 @@
 
 ;; This doesn't use `prec', but maybe in future it will?
 (define (p-prefix-expr-at prec)
+  (choice p-from-@exprs p-atomic-expr))
+
+;; TODO: should atomic-expr be extensible?
+(define p-atomic-expr
   (choice
-    (<$> expr:lit (choice p-str p-num))
-    p-from-@exprs
+    (<$> expr:lit p-lit)
     ;; an identifier.
     ;;
     ;; TODO: shouldn't we exclude identifiers which are used to trigger
@@ -191,7 +197,7 @@
 
 (define (p-prefix-pat-at prec)
   (choice
-    (<$> pat:lit (choice p-str p-num))
+    (<$> pat:lit p-lit)
     p-from-@pats
     ;; TODO: underscore behaves specially?
     (<$> pat:var p-var-id)
