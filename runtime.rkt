@@ -102,6 +102,9 @@
                   [#:tag tag:Monoid Monoid]
                   [#:tag tag:ExtPoint ExtPoint]
 
+                  [symbol string->symbol]
+                  [string (lambda (x) (format "~a" x))]
+
                   ;; TODO: a module containing the extension points, parser
                   ;; combinators, etcetera
 
