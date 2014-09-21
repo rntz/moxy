@@ -1,7 +1,7 @@
 #lang racket
 
 (provide
-  const map_ flip partial nary unary
+  const map_ flip iter partial nary unary
   zip-with zip
   mkid mktemp
   matches? lambda-rec eta
@@ -10,14 +10,14 @@
   show repr printfln)
 
 (define (const x) (lambda _ x))
+(define ((flip f) x y) (f y x))
+(define (iter n f) (apply compose (build-list n (const f))))
 
 (define (map_ f . xs) (apply map f xs) (void))
 
 (define ((partial f . as) . bs) (apply f (append as bs)))
 (define ((nary f) . as) (f as))
 (define ((unary f) xs) (apply f xs))
-
-(define ((flip f) x y) (f y x))
 
 ;; zips arbitrary sequences, not just lists
 (define (zip-with f xs ys)
