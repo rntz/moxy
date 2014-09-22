@@ -8,7 +8,7 @@
 (provide
   pure lift fmap ap ;; applicative
   quasi unquo quo   ;; quasiquoting
-  seq               ;; utilities
+  seq seq*          ;; utilities
   run-quasi)        ;; using the damn thing
 
 (define ((run-at n) x) (x n))
@@ -47,14 +47,3 @@
 
 (define (seq as) (apply fmap list as))
 (define seq* (nary seq))
-
-;;; for testing
-(require "env.rkt")                     ;expr-compile
-(define test
-  (quasi
-    (fmap expr:call
-      (pure (expr:lit +))
-      (seq* (pure (expr:lit 1)) (pure (expr:lit 2))))))
-
-(define (run-test)
-  (eval (expr-compile (run-quasi test) #f)))
