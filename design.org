@@ -76,3 +76,16 @@ thing"? We could:
 
 I'd be willing to give up on "required upper-case for tags" if it made
 implementing this easier, but it doesn't look like it does.
+
+* Quasiquotation
+Implementation options:
+
+- Capture parse-env & return a thunk that parses the things when the expression
+  is actually evaluated.
+
+- Have an "unquote" form for each POS. Extend all part-of-speech interfaces with
+  a "substitute" method that creates a copy in which unquotes are replaced by
+  their computed values.
+
+- Work quasiquotation into the parser monad somehow?
+  This seems most elegant if it can be managed.
