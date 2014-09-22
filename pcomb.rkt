@@ -9,7 +9,7 @@
 (provide
   string-stream stream-stream
   return fail pmap1 pmap2 lift1 lift2 seq seq* lift pdo
-  >>= <* *> <$>
+  >>= <* *> <$> <*>
   try ask local
   psum choice peof
   option optional option-maybe
@@ -175,6 +175,7 @@
 (define seq* (nary seq))
 (define (<$> f . ks) (pmap1 (unary f) (seq ks)))
 (define (lift f) (partial <$> f))
+(define (<*> f . ks) (apply <$> (lambda (x . as) (apply x as)) f ks))
 
 (define >>=
   (case-lambda
