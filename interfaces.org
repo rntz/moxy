@@ -25,15 +25,9 @@ type PatExt { keyword: String, parse: Parse Pat }
 type Pat {
   resolveExt: ResolveEnv
   idents: [Id]
-  -- (compile env subject on-success on-failure)
+  -- compile env subject on-success on-failure --> code
+  -- the `idents' are bound in `on-success'
   compile: ResolveEnv, IR, IR, IR -> IR
-}
--- Alternatively:
-type Pat {
-  resolveExt: ResolveEnv
-  -- compile env matchCase failCase --> branch
-  -- `branch' should bind the ids from `resolveExt' in `matchCase'
-  compile: ResolveEnv -> IR -> IR -> IR
 }
 
 * Infix operators
