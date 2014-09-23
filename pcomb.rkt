@@ -157,7 +157,7 @@
     (lambda (ate res) (ok ate (f res)))))
 
 (define/contract ((pmap2 f a b) env str hardk softk ok)
-  (-> procedure? parser/c parser/c parser/c)
+  (-> (-> any/c any/c any/c) parser/c parser/c parser/c)
   (unless (procedure? f) (error 'pmap2 "not a procedure")) ;TODO: contracts
   (unless (procedure? a) (error 'pmap2 "not a parser"))
   (unless (procedure? b) (error 'pmap2 "not a parser"))

@@ -10,10 +10,14 @@
 (require "parse.rkt")
 (require "core-forms.rkt")
 (require "runtime.rkt")                 ;for engine-builtin-resolve-env
+(require (prefix-in q- "quasi.rkt"))
 
-;; Utilities
-(define p-var-ids (listish p-var-id))
-(define p-params (listish p-pat))
+;; TODO: handle unquote-splicing in q-listish.
+;; q-listish : Parse (Q a) -> Parse (Q [a])
+(define (q-listish p) (<$> q-seq (listish p)))
+
+;; p-pats : Parse (Q [Pat])
+(define p-pats (q-listish p-pat))
 
 ;; ir-case: ResolveEnv, IR, IR, [(Pat, Expr)] -> IR
 ;; assumes subject, on-failure are small
@@ -51,7 +55,6 @@
 ;; (val Pat Expr)
 (define-decl val (pat expr)
   [(sexp) `(val ,(pat-sexp pat) ,(expr-sexp expr))]
-  [parseExt env-empty]
   [resolveExt (pat-resolveExt pat)]
   [(compile env)
     ;; in this case, we don't need an intermediate vector.
@@ -77,18 +80,18 @@
                 ,@(for/list ([(id i) (in-indexed idents)])
                     `(,id (vector-ref ,vector-tmp ',i)))))])))])
 
-(define @decl:val
-  (record [parser (<$> decl:val p-pat (*> equals p-expr))]))
+;; make-@val : Q Pat, Q Expr -> (ParseEnv, Q Expr)
+(define (make-@val pat expr) (list env-empty (q-fmap decl:val pat expr)))
+(define @decl:val (record [parser (<$> make-@val p-pat (*> equals p-expr))]))
 
 ;; (fun name:Symbol arity:Nat branches:[Branch])
 ;; where Branch = (params:[Pat], body:Expr)
-;; where each params-list is of length `arity'
+;; where each `params'-list is of length `arity'
 (define-decl fun (name arity branches)
   [(sexp) `(fun ,name ,@(for/list ([b branches])
                           (match-let ([`(,params ,body) b])
                             `(,(map pat-sexp params) ,(expr-sexp body)))))]
   [id (mkid name)]
-  [parseExt env-empty]
   [resolveExt (env-single @vars (@vars-var name id))]
   [func-expr (expr:case-lambda arity branches
                (expr:racket `(error "Non-exhaustive cases in fun!")))]
@@ -96,31 +99,33 @@
     (let ([inner-env (env-join env resolveExt)])
       `((,id ,(expr-compile func-expr inner-env))))])
 
-(define p-fun-clause (seq* p-var-id (parens p-params) (*> equals p-expr)))
-(define p-fun
-  (pdo clauses <- (begin-sep-by1 p-fun-clause bar)
-    (let/ec escape
-      (match-define `((,name ,params ,_) . ,_) clauses)
-      (define arity (length params))
-      (define case-branches
-        (for/list ([clause clauses])
-          (match-define `(,clause-name ,clause-params ,clause-body) clause)
-          (unless (symbol=? name clause-name)
-            (escape (fail "fun clauses have varying names")))
-          (unless (= arity (length clause-params))
-            (escape (fail "fun clauses have varying arity")))
-          (list clause-params clause-body)))
-      (return (decl:fun name arity case-branches)))))
+;; make-fun : [(Symbol, [Pat], Expr)] -> Expr
+(define (make-fun clauses)
+  (match-define `((,name ,params ,_) . ,_) clauses)
+  (define arity (length params))
+  (define case-branches
+    (for/list ([clause clauses])
+      (match-define `(,clause-name ,clause-params ,clause-body) clause)
+      (unless (symbol=? name clause-name)
+        (error "fun clauses have varying names"))
+      (unless (= arity (length clause-params))
+        (error "fun clauses have varying arity"))
+      (list clause-params clause-body)))
+  (decl:fun name arity case-branches))
 
-(define @decl:fun
-  (record [parser p-fun]))
+;; p-fun-clause : Parse (Q (Symbol, [Pat], Expr))
+;; p-fun : Parse (Q Decl)
+(define p-fun-clause
+  (<$> q-seq (seq* (<$> q-pure p-var-id) (parens p-pats) (*> equals p-expr))))
+(define p-fun (<$> (compose (q-lift make-fun) q-seq)
+                (begin-sep-by1 p-fun-clause bar)))
+(define @decl:fun (record [parser (<$> (partial list env-empty) p-fun)]))
 
 ;; (begin [Decl])
 ;; currently exists only for convenience; not exposed in language
 ;; expr:let uses this
 (define-decl begin (decls)
   [(sexp) `(,@(map decl-sexp decls))]
-  [parseExt (env-join* (map decl-parseExt decls))]
   [resolveExt (env-join* (map decl-resolveExt decls))]
   [(compile env)
     (let loop ([decls decls]
@@ -135,7 +140,6 @@
 ;; (rec [Decl])
 (define-decl rec (decls)
   [(sexp) `(rec ,@(map decl-sexp decls))]
-  [parseExt (env-join* (map decl-parseExt decls))]
   [resolveExt (env-join* (map decl-resolveExt decls))]
   ;; TODO: we should check for definition cycles somehow!
   ;; if we compiled to IR instead of to Racket this might be easier.
@@ -143,10 +147,18 @@
     (let ([env (env-join env resolveExt)])
       (apply append (map (lambda (x) (decl-compile x env)) decls)))])
 
+;; make-decl:rec : [(ParseEnv, Q Decl)] -> (ParseEnv, Q Decl)
+(define (make-@rec decls)
+  (list (env-join* (map car decls))
+    (q-fmap decl:rec (q-seq (map cadr decls)))))
+
 (define @decl:rec
-  ;; NB. This doesn't allow the decls to see each other's parse extensions.
+  ;; NB. this doesn't allow later decls to see earlier decl's parse extensions.
   ;; TODO: is this the right behavior?
-  (record [parser (<$> decl:rec (sep-by1 p-decl (keyword "and")))]))
+  ;;
+  ;; really, what's going on is that when parsing declarations I want a (State
+  ;; ParseEnv); and when parsing other things I want a (Reader ParseEnv) monad.
+  (record [parser (<$> make-@rec (sep-by1 p-decl (keyword "and")))]))
 
 ;; (tag name:Symbol params:(Maybe [Symbol]))
 ;; TODO: require tags be upper-case?
@@ -156,7 +168,6 @@
   [id (mkid "ctor:~a" name)]
   [tag-id (mkid "tag:~a" name)]
   [info (@var:ctor name id tag-id params)]
-  [parseExt env-empty]
   [resolveExt (env-single @vars (hash name info))]
   [(compile env)
     `((,tag-id (new-tag ',name ',(from-maybe params '())))
@@ -164,15 +175,15 @@
               [(Just l) `(lambda ,l (make-ann ,tag-id ,@l))]
               [(None) `(make-ann ,tag-id)])))])
 
+(define (make-@decl i ps) `(,env-empty ,(q-pure (decl:tag i ps))))
 (define @decl:tag
-  (record [parser (<$> decl:tag p-caps-id
+  (record [parser (<$> make-@decl p-caps-id
                     (option-maybe (parens (listish p-var-id))))]))
 
 ;; TODO: more powerful imports (qualifying, renaming, etc.)
 (define-decl open (path nodule)
   [(sexp) `(open ,path)]
   [resolveExt (@nodule-resolveExt nodule)]
-  [parseExt (@nodule-parseExt nodule)]
   [(compile env) '()])
 
 (define p-decl-open
@@ -181,7 +192,8 @@
     `(,path ,name) <- (p-qualified p-caps-id)
     let path (append path (list name))
     (match (resolve-nodule-path parse-env path)
-      [(Ok nodule) (return (decl:open path nodule))]
+      [(Ok nodule) (return `(,(@nodule-parseExt nodule)
+                             ,(q-pure (decl:open path nodule))))]
       [(Err _)
         ;; TODO: better error message using information from Err
         (fail (format "unbound module: ~a" path))])))
@@ -227,7 +239,7 @@
 
 ;; for now, lambdas don't get multiple branches, but you can pattern-match.
 (define @expr:lambda
-  (record [parser (<$> expr:lambda (parens p-params) p-expr)]))
+  (record [parser (<$> (q-lift expr:lambda) (parens p-pats) p-expr)]))
 
 ;; (let Decl Expr)
 (define-expr let (decl exp)
@@ -238,13 +250,11 @@
 
 (define p-let
   (pdo
-    decls <- (<* p-decls (keyword "in"))
-    let d (decl:begin decls)
-    (<$> (partial expr:let d)
-      (local-env (decl-parseExt d) p-expr))))
+    `(,e ,decls) <- (<* p-decls (keyword "in"))
+    let d (q-fmap decl:begin decls)
+    (<$> (partial (q-lift expr:let) d) (local-env e p-expr))))
 
-(define @expr:let
-  (record [parser p-let]))
+(define @expr:let (record [parser p-let]))
 
 ;; (if Expr Expr Expr)
 (define-expr if (subject then else)
@@ -255,7 +265,7 @@
        ,(expr-compile else env))])
 
 (define @expr:if
-  (record [parser (<$> expr:if p-expr
+  (record [parser (<$> (q-lift expr:if) p-expr
                     (*> (keyword "then") p-expr)
                     (*> (keyword "else") p-expr))]))
 
@@ -273,39 +283,42 @@
        ,(ir-case env subject-id `(error "Non-exhaustive patterns in case!")
           branches))])
 
+;; make-@case : Q Expr, [(Q Pat, Q Expr)] -> Q Expr
+(define (make-@case subj branches)
+  (q-fmap expr:case subj (q-seq (map q-seq branches))))
+
 (define @expr:case
   ;; TODO: shouldn't we be parsing the subject at a certain precedence?
   ;; consider e.g. (case (case x ...) ...)
-  (record [parser (<$> expr:case
-                    p-expr
+  (record [parser (<$> make-@case p-expr
                     (many (*> bar (seq* p-pat (*> (keysym "->") p-expr)))))]))
 
-;; quasiquotation
-(define-ExtPoint @quasiquote-level + 0)
+;; ;; quasiquotation
+;; (define-ExtPoint @quasiquote-level + 0)
 
-(define p-quasi-expr
-  ;; TODO: unquotation
-  (local-env (env-single @quasiquote-level 1)
-    ;; FIXME: expr:lit won't work
-    (<$> expr:lit (choice p-atomic-expr (parens p-expr)))))
+;; (define p-quasi-expr
+;;   ;; TODO: unquotation
+;;   (local-env (env-single @quasiquote-level 1)
+;;     ;; FIXME: expr:lit won't work
+;;     (<$> expr:lit (choice p-atomic-expr (parens p-expr)))))
 
-(define p-quasiquote
-  (choice
-    ;; "expr" is optional b/c we default to exprs
-    (*> (optional (keyword "expr")) p-quasi-expr)
-    ;; TODO: more quasiquotation types (decl, pat, top?)
-    ))
-(define @expr:quasiquote (record [parser p-quasiquote]))
+;; (define p-quasiquote
+;;   (choice
+;;     ;; "expr" is optional b/c we default to exprs
+;;     (*> (optional (keyword "expr")) p-quasi-expr)
+;;     ;; TODO: more quasiquotation types (decl, pat, top?)
+;;     ))
+;; (define @expr:quasiquote (record [parser p-quasiquote]))
 
-(define @expr:unquote
-  (record [parser
-            (local-env (env-single @quasiquote-level -1)
-              (pdo parse-env <- ask
-                (if (> 0 (env-get @quasiquote-level parse-env))
-                  (fail "unquote outside of quasiquote")
-                  (<$> ;; expr:unquote ; FIXME
-                    (lambda (x) x)           ;FIXME
-                    (choice p-atomic-expr (parens p-expr))))))]))
+;; (define @expr:unquote
+;;   (record [parser
+;;             (local-env (env-single @quasiquote-level -1)
+;;               (pdo parse-env <- ask
+;;                 (if (> 0 (env-get @quasiquote-level parse-env))
+;;                   (fail "unquote outside of quasiquote")
+;;                   (<$> ;; expr:unquote ; FIXME
+;;                     (lambda (x) x)           ;FIXME
+;;                     (choice p-atomic-expr (parens p-expr))))))]))
 
 (define builtin-@exprs
   (hash
@@ -314,8 +327,9 @@
     (TID "let")  @expr:let
     (TID "if")   @expr:if
     (TID "case") @expr:case
-    (TSYM "`")   @expr:quasiquote
-    (TSYM "~")   @expr:unquote))
+    ;; (TSYM "`")   @expr:quasiquote
+    ;; (TSYM "~")   @expr:unquote
+    ))
 
 
 ;; -- infixes --
@@ -324,8 +338,8 @@
 (define @infix:call
   (record
     [precedence 11]
-    [(parser func-expr) (<$> (partial expr:call func-expr)
-                             (<* (listish p-expr) rparen))]))
+    [(parser func-expr) (<$> (partial (q-lift expr:call) func-expr)
+                             (<* (q-listish p-expr) rparen))]))
 
 ;; (seq Expr Expr)
 (define-expr seq (a b)
@@ -335,15 +349,16 @@
 (define @infix:seq
   (record
     [precedence 0]
-    [(parser first-expr) (<$> (partial expr:seq first-expr) (p-expr-at 0))]))
+    [(parser first-expr)
+      (<$> (partial (q-lift expr:seq) first-expr) (p-expr-at 0))]))
 
 ;; infix operators
 ;; associativity must be Left or Right.
 (define-@infix oper (assoc precedence function)
   [(parser left-arg)
     (<$>
-      (lambda (right-arg) (expr:call (expr:lit function)
-                                (list left-arg right-arg)))
+      (lambda (right-arg) (q-fmap (partial expr:call (expr:lit function))
+                       (q-seq* left-arg right-arg)))
       (p-expr-at (match assoc
                    [(L) (+ precedence 1)]
                    [(R) precedence])))])

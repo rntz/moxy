@@ -12,6 +12,7 @@
 (require "pcomb.rkt")
 (require "core-forms.rkt")
 (require "runtime.rkt")                 ;for engine-namespace
+(require (prefix-in q- "quasi.rkt"))
 
 (provide
   parse parse-eval-file
@@ -23,7 +24,6 @@
   p-any-id p-id p-var-id p-caps-id
   p-qualified p-var
   listish
-  ;; TODO: p-pat
   p-expr p-expr-at p-prefix-expr-at p-atomic-expr p-infix-expr
   p-pat p-pat-at p-prefix-pat-at p-infix-pat
   p-decl p-decls
@@ -121,6 +121,8 @@
     (return (qualify-var parse-env path name))))
 
 
+;; p-expr-at : Int -> Parse (Q Expr)
+;;
 ;; Parses an expression at a given precedence (i.e. the longest expression that
 ;; contains no operators of looser precedence).
 ;;
@@ -136,16 +138,17 @@
 
 ;; TODO: should atomic-expr be extensible?
 (define p-atomic-expr
-  (choice
-    (<$> expr:lit p-lit)
-    ;; an identifier.
-    ;;
-    ;; TODO: shouldn't we exclude identifiers which are used to trigger
-    ;; parse-extensions from this?
-    ;;
-    ;; TODO: shouldn't only tag & variable identifiers be allowed, and e.g.
-    ;; module identifiers be disallowed?
-    (<$> expr:var (p-var p-any-id))))
+  (<$> q-pure
+    (choice
+      (<$> expr:lit p-lit)
+      ;; an identifier.
+      ;;
+      ;; TODO: shouldn't we exclude identifiers which are used to trigger
+      ;; parse-extensions from this?
+      ;;
+      ;; TODO: shouldn't only tag & variable identifiers be allowed, and e.g.
+      ;; module identifiers be disallowed?
+      (<$> expr:var (p-var p-any-id)))))
 
 ;; Problem: precedence not taken into account. "let" does not have same
 ;; precedence as function application. Is this a real problem?
@@ -190,6 +193,7 @@
 
 (define p-expr (p-expr-at 0))
 
+;; p-pat-at : Parse (Q Pat)
 ;; Parses a pattern at a given precedence.
 (define (p-pat-at prec)
   (pdo e <- (p-prefix-pat-at prec)
@@ -197,16 +201,16 @@
 
 (define (p-prefix-pat-at prec)
   (choice
-    (<$> pat:lit p-lit)
+    (<$> (compose q-pure pat:lit) p-lit)
     p-from-@pats
     ;; TODO: underscore behaves specially?
-    (<$> pat:var p-var-id)
+    (<$> (compose q-pure pat:var) p-var-id)
     ;; TODO: this tag/ann-matching behavior shouldn't be hard-coded in! :(
     ;; TODO: tag/ann patterns without parens afterwards, e.g. Nil
     (<$>
-      pat:ann
+      (lambda (id args) (q-fmap (partial pat:ann id) (q-seq args)))
       (p-var p-caps-id)
-      ;; the eta is necessary to avoid circularity
+      ;; eta necessary to avoid circularity
       (option '() (eta (parens (listish p-pat)))))))
 
 (define p-from-@pats
@@ -233,6 +237,7 @@
 
 (define p-pat (p-pat-at 0))
 
+;; p-decl : Parse (ParseEnv, Q Decl)
 (define p-decl
   (pdo
     parse-env <- ask
@@ -241,11 +246,15 @@
     ;; Pass off to its parser
     (@decl-parser ext)))
 
+;; p-decls : Parse (ParseEnv, Q [Decl])
 (define p-decls
-  (option '()
-    (pdo d <- p-decl
-      (local-env (decl-parseExt d)
-        (<$> (partial cons d) (eta p-decls))))))
+  (let recur ([es env-empty]
+              [ds '()])
+    (choice
+      (pdo `(,e ,d) <- p-decl
+        (local-env e
+          (recur (env-join es e) (cons d ds))))
+      (eta (return (list es (q-seq (reverse ds))))))))
 
 
 ;; This is it, folks. This is what it's all for.
@@ -289,7 +298,9 @@
 
 (define ((parse-eval-decl decl-parser) resolve-env eng)
   (>>= decl-parser
-    (lambda (decl)
+    (lambda (d)
+      (match-define `(,decl-env ,decl-q) d)
+      (define decl (q-run decl-q))
       (debugf-pretty " * AST:" (decl-sexp decl))
       (define code
         `(begin
@@ -297,9 +308,9 @@
                `(define ,@id-code))))
       (debugf-pretty " * IR:" code)
       (eval code (engine-namespace eng))
-      (return (result:decl decl)))))
+      (return (result:decl decl-env decl)))))
 
 ;; (result:decl Decl)
-(define-result decl (decl)
+(define-result decl (env decl)
   [resolveExt (decl-resolveExt decl)]
-  [parseExt (decl-parseExt decl)])
+  [parseExt env])

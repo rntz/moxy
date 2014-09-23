@@ -6,22 +6,50 @@ type IR = IR expressions
 type Conts a b = parser continuations taking a returning b
 type Parse a = (ParseEnv, Stream, Conts a b) -> b
 
+-- pretending that Expr is parameterized by the type of its result,
+-- e.g. Expr Int = "an expression computing an Int"
+type Q a = Pi n:Nat. Expr^n a
+
+* Top level
+type TopExt { tok: Tok, parse: Parse Top }
+
+type Top {
+  parse-eval: ResolveEnv, Engine -> Parse Result
+}
+
+type Result {
+  parseExt: ParseEnv
+  resolveExt: ResolveEnv
+}
+
 * Expressions
-type ExprExt { keyword: String, parse: Parse Expr }
+type ExprExt { tok: String, parse: Parse PExpr }
+
+type PExpr = Q Expr
+type PExpr { contents: Q Expr }
 type Expr {
+  sexp: -> Sexp
   compile: ResolveEnv -> IR
 }
 
 * Declarations
-type DeclExt { keyword: String, parse: Parse Decl }
+type DeclExt { tok: String, parse: Parse PDecl }
+
+type PDecl = (ParseEnv, Q Decl)
+-- type PDecl { parseExt: ParseEnv, contents: Q Decl }
+
 type Decl {
-  parseExt: ParseEnv
+  sexp: -> Sexp
   resolveExt: ResolveEnv
   compile: ResolveEnv -> [(Id, IR)]
 }
 
 * Patterns
-type PatExt { keyword: String, parse: Parse Pat }
+type PatExt { tok: String, parse: Parse PPat }
+
+--type PPat { contents: Q Pat }
+type PPat = Q Pat
+
 type Pat {
   resolveExt: ResolveEnv
   idents: [Id]

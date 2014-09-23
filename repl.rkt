@@ -12,6 +12,7 @@
 (require "parse.rkt")
 (require "parse-builtins.rkt")
 (require "runtime.rkt")
+(require (prefix-in q- "quasi.rkt"))
 
 (provide repl)
 
@@ -104,7 +105,7 @@
                           (result:empty))])
         ((choice
            (<$> Result (<* (parse-eval resolve-env eng) peof))
-           (<$> Expr (<* p-expr peof)))
+           (<$> Expr (<$> q-run (<* p-expr peof))))
           parse-env
           (stream-stream (in-list toks))
           print-error

@@ -1,15 +1,13 @@
 #lang racket
 
 (require "util.rkt")
-(require (only-in "core-forms.rkt" expr:lit))
-;; TODO: Move expr:call to core-forms.rkt
-(require (only-in "parse-builtins.rkt" expr:call))
+(require (only-in "core-forms.rkt" expr:lit expr:call))
 
 (provide
   pure lift fmap ap ;; applicative
   quasi unquo quo   ;; quasiquoting
   seq seq*          ;; utilities
-  run-quasi)        ;; using the damn thing
+  run)              ;; using the damn thing
 
 (define ((run-at n) x) (x n))
 
@@ -19,8 +17,8 @@
 ;; a natural number n indicating the quasiquoting depth to interpret it at, and
 ;; return the appropriate expression at that depth, ostensibly of type (IR^n a).
 
-;; run-quasi : Q a -> a
-(define (run-quasi q) (q 0))
+;; run : Q a -> a
+(define (run q) (q 0))
 
 ;; pure : a -> Q a
 (define ((pure x) n) ((iter n expr:lit) x))
@@ -45,5 +43,5 @@
 
 (define (quo k) (fmap expr:lit k))
 
-(define (seq as) (apply fmap list as))
-(define seq* (nary seq))
+(define seq* (lift list))
+(define seq (unary seq*))
