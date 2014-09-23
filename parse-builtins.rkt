@@ -296,29 +296,23 @@
 ;; ;; quasiquotation
 ;; (define-ExtPoint @quasiquote-level + 0)
 
-;; (define p-quasi-expr
-;;   ;; TODO: unquotation
-;;   (local-env (env-single @quasiquote-level 1)
-;;     ;; FIXME: expr:lit won't work
-;;     (<$> expr:lit (choice p-atomic-expr (parens p-expr)))))
+(define p-quasi-expr
+  (<$> q-quasi (choice p-atomic-expr (parens p-expr))))
 
-;; (define p-quasiquote
-;;   (choice
-;;     ;; "expr" is optional b/c we default to exprs
-;;     (*> (optional (keyword "expr")) p-quasi-expr)
-;;     ;; TODO: more quasiquotation types (decl, pat, top?)
-;;     ))
-;; (define @expr:quasiquote (record [parser p-quasiquote]))
+(define p-quasiquote
+  (choice
+    ;; "expr" is optional b/c we default to exprs
+    (*> (optional (keyword "expr")) p-quasi-expr)
+    ;; TODO: more quasiquotation types (decl, pat, top?)
+    ))
+(define @expr:quasiquote (record [parser p-quasiquote]))
 
-;; (define @expr:unquote
-;;   (record [parser
-;;             (local-env (env-single @quasiquote-level -1)
-;;               (pdo parse-env <- ask
-;;                 (if (> 0 (env-get @quasiquote-level parse-env))
-;;                   (fail "unquote outside of quasiquote")
-;;                   (<$> ;; expr:unquote ; FIXME
-;;                     (lambda (x) x)           ;FIXME
-;;                     (choice p-atomic-expr (parens p-expr))))))]))
+(define @expr:unquote
+  (record [parser (<$> q-unquo (choice p-atomic-expr (parens p-expr)))]))
+
+;; TODO: quotation for more forms than expressions.
+(define @expr:quote
+  (record [parser (<$> q-quo (choice p-atomic-expr (parens p-expr)))]))
 
 (define builtin-@exprs
   (hash
@@ -327,8 +321,9 @@
     (TID "let")  @expr:let
     (TID "if")   @expr:if
     (TID "case") @expr:case
-    ;; (TSYM "`")   @expr:quasiquote
-    ;; (TSYM "~")   @expr:unquote
+    (TSYM "`")   @expr:quasiquote
+    (TSYM "'")   @expr:quote
+    (TSYM "~")   @expr:unquote
     ))
 
 

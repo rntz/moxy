@@ -105,6 +105,9 @@
                   [symbol string->symbol]
                   [string (lambda (x) (format "~a" x))]
 
+                  [racketEval eval]
+                  [eval (lambda (e) (eval (expr-compile e env-empty)))]
+
                   ;; TODO: a module containing the extension points, parser
                   ;; combinators, etcetera
 
