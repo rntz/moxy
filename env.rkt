@@ -244,6 +244,14 @@
   ;; Returns a list of identifier-IR pairs, (id code). `code' is IR that
   ;; evaluates to what `id' should be bound to. Each `id' is in the scope of
   ;; every `code', but the `id's are defined in the order given (a la letrec).
+  ;;
+  ;; And no, there's no reason in particular that we don't do it the following
+  ;; way instead:
+  ;;
+  ;;   idents: [Id]
+  ;;   compile: ResolveEnv -> [IR]
+  ;;
+  ;; It would just be annoying to change all the code at this point.
   (compile resolve-env))
 
 (define-iface pat
