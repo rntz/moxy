@@ -319,12 +319,7 @@
 
 
 ;; -- infixes --
-(provide expr:call expr:seq)
-
-;; (call Expr [Expr])
-(define-expr call (func args)
-  [(sexp) (map expr-sexp (cons func args))]
-  [(compile env) (map (lambda (x) (expr-compile x env)) (cons func args))])
+(provide expr:seq)
 
 (define @infix:call
   (record

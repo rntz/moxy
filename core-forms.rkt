@@ -10,7 +10,7 @@
 (provide
   @var:var @var:ctor @vars-var @vars-ctor
   var:local var:unbound var:qualified
-  expr:var expr:lit expr:racket
+  expr:var expr:lit expr:racket expr:call
   pat:lit pat:var pat:vector pat:ann)
 
 (define (literal? x)
@@ -57,6 +57,11 @@
 (define-expr racket (code)
   [(sexp) `(racket ,code)]
   [(compile env) code])
+
+;; (call Expr [Expr])
+(define-expr call (func args)
+  [(sexp) (map expr-sexp (cons func args))]
+  [(compile env) (map (lambda (x) (expr-compile x env)) (cons func args))])
 
 
 ;; - pats -
