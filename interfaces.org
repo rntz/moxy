@@ -5,12 +5,11 @@ type IR = IR expressions
 
 type Conts a b = parser continuations taking a returning b
 type Parse a = (ParseEnv, Stream, Conts a b) -> b
-type Compile a = ResolveEnv -> a
 
 * Expressions
 type ExprExt { keyword: String, parse: Parse Expr }
 type Expr {
-  compile: Compile IR
+  compile: ResolveEnv -> IR
 }
 
 * Declarations
@@ -18,16 +17,16 @@ type DeclExt { keyword: String, parse: Parse Decl }
 type Decl {
   parseExt: ParseEnv
   resolveExt: ResolveEnv
-  compile: Compile [(Id, IR)]
+  compile: ResolveEnv -> [(Id, IR)]
 }
 
 * Patterns
 type PatExt { keyword: String, parse: Parse Pat }
 type Pat {
   resolveExt: ResolveEnv
-  binds: [Id]
-  -- compiled IR evals to either #f or list of values for id in binds
-  compile: Compile IR
+  idents: [Id]
+  -- (compile env subject on-success on-failure)
+  compile: ResolveEnv, IR, IR, IR -> IR
 }
 -- Alternatively:
 type Pat {
