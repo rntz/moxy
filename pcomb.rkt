@@ -19,7 +19,7 @@
   begin-sep-end-by begin-sep-end-by1
   between pmap-maybe pfilter
   take expect-seq take-one try-one-maybe expect peek-one satisfy any-of none-of
-  alpha digit space whitespace opt-whitespace
+  ;; alpha digit space whitespace opt-whitespace
   )
 
 ;;; Miscellaneous utilities
@@ -335,9 +335,9 @@
   (satisfy (lambda (c) (not (sequence-ormap (partial test c) s)))
     (lambda (c) (string-append "expected none of " (repr s)))))
 
-(define alpha (any-of "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
-(define digit (any-of "0123456789"))
+;; (define alpha (any-of "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))
+;; (define digit (any-of "0123456789"))
 
-(define space (any-of " \r\n\t\v\f"))
-(define whitespace (skip-many1 space))
-(define opt-whitespace (skip-many space))
+;; (define space (any-of " \r\n\t\v\f"))
+;; (define whitespace (skip-many1 space))
+;; (define opt-whitespace (skip-many space))
