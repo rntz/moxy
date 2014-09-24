@@ -20,7 +20,8 @@
     (namespace-set-variable-value! id value #t)
     (vars (@vars-var name id))))
 
-(define (tag tag ctor)
+(define/contract (tag tag ctor)
+  (-> tag? any/c (list/c hash? hash?))
   (let* ([name (tag-name tag)]
          [tag-id (mkid "tag:~a" name)]
          [ctor-id (mkid name)])
@@ -29,7 +30,7 @@
     (vars (@vars-ctor name ctor-id tag-id
             (match (tag-arity tag)
               [0 None]
-              [n (Just n)])))))
+              [n (Just (tag-fields tag))])))))
 
 (define (nodule name envlist)
   (define parse-env (env-join* (map car envlist)))

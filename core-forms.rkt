@@ -22,7 +22,8 @@
 (define-@var ctor (name id tag-id tag-params) [style 'ctor])
 
 (define (@vars-var name id) (hash name (@var:var name id)))
-(define (@vars-ctor name id tag-id tag-params)
+(define/contract (@vars-ctor name id tag-id tag-params)
+  (-> symbol? symbol? symbol? (Maybe/c (listof symbol?)) hash?)
   (hash name (@var:ctor name id tag-id tag-params)))
 
 

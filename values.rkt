@@ -69,7 +69,7 @@
 
 ;; Tag & annotated value interface
 (provide
-  new-tag tag? tag-name tag-uid tag-arity tag-field-index
+  new-tag tag? tag-name tag-uid tag-arity tag-fields tag-field-index
   ann ann? make-ann ann-tag ann-args ann-get-field ann-isa?
   define-tag)
 
@@ -98,6 +98,9 @@
 (define (new-tag name field-names)
   (make-tag name (gensym name) (length field-names)
     (hash-from-keys-values field-names (in-naturals 0))))
+
+(define (tag-fields tag)
+  (map car (sort (hash->list (tag-field-map tag)) < #:key cdr)))
 
 (define (tag-field-index tag field-name)
   ;; TODO: better error message on failure
@@ -167,6 +170,7 @@
   tag:Just Just Just? Just-value
   tag:None None None?
   maybe? maybe from-maybe maybe-bind maybe-map maybe-filter
+  Maybe/c
   tag:Monoid Monoid Monoid? Monoid-join Monoid-empty
   tag:ExtPoint ExtPoint ExtPoint? ExtPoint-name ExtPoint-uid ExtPoint-monoid
   ExtPoint-join ExtPoint-empty)
@@ -200,6 +204,11 @@
 (define-tag None)
 
 (define (maybe? x) (or (Just? x) (None? x)))
+(define (Maybe/c c)
+  (or/c None?
+    (struct/c ann
+      (lambda (x) (equal? tag:Just x))
+      (vector-immutable/c c))))
 
 (define (maybe v default inject)
   (match v [(None) default] [(Just x) (inject x)]))
