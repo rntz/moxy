@@ -11,7 +11,7 @@
 (require "lex.rkt")
 (require "pcomb.rkt")
 (require "core-forms.rkt")
-(require "runtime.rkt")                 ;for engine-namespace
+(require "engine.rkt")
 (require (prefix-in q- "quasi.rkt"))
 
 (provide
@@ -25,7 +25,7 @@
   p-qualified p-var
   listish
   p-expr p-expr-at p-prefix-expr-at p-atomic-expr p-infix-expr
-  p-pat p-pat-at p-prefix-pat-at p-infix-pat
+  p-pat p-pat-at p-atomic-pat p-prefix-pat-at p-infix-pat
   p-decl p-decls
   parse-eval parse-eval-one)
 
@@ -201,10 +201,8 @@
 
 (define (p-prefix-pat-at prec)
   (choice
-    (<$> (compose q-pure pat:lit) p-lit)
     p-from-@pats
-    ;; TODO: underscore behaves specially?
-    (<$> (compose q-pure pat:var) p-var-id)
+    p-atomic-pat
     ;; TODO: this tag/ann-matching behavior shouldn't be hard-coded in! :(
     ;; TODO: tag/ann patterns without parens afterwards, e.g. Nil
     (<$>
@@ -212,6 +210,10 @@
       (p-var p-caps-id)
       ;; eta necessary to avoid circularity
       (option '() (eta (parens (listish p-pat)))))))
+
+(define p-atomic-pat
+  ;; TODO: underscore pattern?
+  (<$> q-pure (choice (<$> pat:lit p-lit) (<$> pat:var p-var-id))))
 
 (define p-from-@pats
   (pdo

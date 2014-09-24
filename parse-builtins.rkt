@@ -9,7 +9,7 @@
 (require "pcomb.rkt")
 (require "parse.rkt")
 (require "core-forms.rkt")
-(require "runtime.rkt")                 ;for engine-builtin-resolve-env
+(require "engine.rkt")
 (require (prefix-in q- "quasi.rkt"))
 
 ;; TODO: handle unquote-splicing in q-listish.
@@ -200,13 +200,18 @@
 
 (define @decl:open (record [parser p-decl-open]))
 
+(define @decl:unquote
+  (record [parser (<$> (compose (partial list env-empty) q-unquo)
+                    (choice p-atomic-expr (parens p-expr)))]))
+
 (define builtin-@decls
   (hash
     (TID "val")     @decl:val
     (TID "fun")     @decl:fun
     (TID "tag")     @decl:tag
     (TID "rec")     @decl:rec
-    (TID "open")    @decl:open))
+    (TID "open")    @decl:open
+    (TSYM "$")      @decl:unquote))
 
 
 ;; -- exprs --
@@ -280,7 +285,7 @@
     ;; TODO: check whether (expr-compile subject env) is "small" and, if so,
     ;; omit binding it to subject-id.
     `(let ([,subject-id ,(expr-compile subject env)])
-       ,(ir-case env subject-id `(error "Non-exhaustive patterns in case!")
+       ,(ir-case env subject-id `(error "No pattern in case matched!")
           branches))])
 
 ;; make-@case : Q Expr, [(Q Pat, Q Expr)] -> Q Expr
@@ -293,26 +298,28 @@
   (record [parser (<$> make-@case p-expr
                     (many (*> bar (seq* p-pat (*> (keysym "->") p-expr)))))]))
 
-;; ;; quasiquotation
-;; (define-ExtPoint @quasiquote-level + 0)
+;; quasiquotation
+(define-ExtPoint @quote-forms hash-union (hash))
 
-(define p-quasi-expr
-  (<$> q-quasi (choice p-atomic-expr (parens p-expr))))
+;; TODO: this should have an extension point!
+;; if we did this we could define quasiquote and quote generically, so that
+;; anything quasiquotable is automatically quotable!
+(define p-quote-form
+  (pdo parse-env <- ask
+    ext <- (pmap-maybe take-one
+             (lambda (t) (hash-lookup t (env-get @quote-forms parse-env)))
+             (lambda (t) (format "no quote form bound to ~v" t)))
+    (parens ext)))
 
-(define p-quasiquote
-  (choice
-    ;; "expr" is optional b/c we default to exprs
-    (*> (optional (keyword "expr")) p-quasi-expr)
-    ;; TODO: more quasiquotation types (decl, pat, top?)
-    ))
-(define @expr:quasiquote (record [parser p-quasiquote]))
+(define @expr:quasiquote (record [parser (<$> q-quasi p-quote-form)]))
+(define @expr:quote (record [parser (<$> q-quo p-quote-form)]))
 
 (define @expr:unquote
   (record [parser (<$> q-unquo (choice p-atomic-expr (parens p-expr)))]))
 
-;; TODO: quotation for more forms than expressions.
-(define @expr:quote
-  (record [parser (<$> q-quo (choice p-atomic-expr (parens p-expr)))]))
+;; TODO: remove this
+(define @expr:symbol
+  (record [parser (<$> (compose q-pure expr:lit) p-any-id)]))
 
 (define builtin-@exprs
   (hash
@@ -321,9 +328,10 @@
     (TID "let")  @expr:let
     (TID "if")   @expr:if
     (TID "case") @expr:case
-    (TSYM "`")   @expr:quasiquote
-    (TSYM "'")   @expr:quote
-    (TSYM "~")   @expr:unquote
+    (TSYM ":")   @expr:quasiquote
+    (TSYM "::")  @expr:quote
+    (TSYM "$")   @expr:unquote
+    (TSYM "'")   @expr:symbol ;; TODO: remove
     ))
 
 
@@ -435,7 +443,13 @@
 
 ;; TODO: pat:and, pat:or, pat:guard
 
-(define builtin-@pats (hash))
+(define @pat:unquote
+  (record [parser (<$> q-unquo (choice p-atomic-expr (parens p-expr)))]))
+
+(define builtin-@pats
+  (hash
+    (TSYM "$") @pat:unquote
+    ))
 
 
 ;; -- infix patterns --
@@ -473,15 +487,35 @@
           (define result
             (parse-eval-file
               (format "~a.mox" (string-downcase (symbol->string name)))
-              builtin-parse-env
-              (engine-builtin-resolve-env eng)
+              (engine-parse-env eng)
+              (engine-resolve-env eng)
               eng))
           (return (result:nodule name result))))]))
+
+;;; FIXME TODO
+;; "extension point name(identity, operator)"
+;; (define @top:extension
+;;   (record
+;;     [(parse-eval resolve-env eng)
+      
+;;       ]))
 
 (define builtin-@tops
   (hash
     (TID "module")  @top:nodule
     (TID "import")  @top:import))
+
+
+;; -- quote forms --
+(define builtin-@quote-forms
+  (hash
+    (TID "e") p-expr
+    ;; cadr is needed to grab the (Q Decl) from the (ParseEnv, Q Decl)
+    ;; TODO: should there be some way of getting the ParseEnv, too?
+    (TID "d") (<$> cadr p-decl)
+    (TID "p") p-pat
+    ;; TODO?: more quasiquotation types (top?)
+    ))
 
 
 ;; -- The default/built-in parser extensions --
@@ -495,5 +529,5 @@
     @infixes builtin-@infixes
     @pats builtin-@pats
     @infix-pats builtin-@infix-pats
-    @tops builtin-@tops))
-
+    @tops builtin-@tops
+    @quote-forms builtin-@quote-forms))

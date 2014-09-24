@@ -54,3 +54,5 @@ val 1 = let open B.C in x
 val 1 = let open B
             open C
         in x
+
+val _ = :e(2 + :d(val x = $(hello)))

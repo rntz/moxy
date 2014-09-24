@@ -11,10 +11,15 @@
 (require "pcomb.rkt")
 (require "parse.rkt")
 (require "parse-builtins.rkt")
+(require "engine.rkt")
 (require "runtime.rkt")
+(require (only-in "objects.rkt" show-record))
 (require (prefix-in q- "quasi.rkt"))
 
 (provide repl)
+
+(define (repl-show x)
+  (if (hash? x) "<object>" (show x)))
 
 (define-tag FoundSemi rev-toks after)
 (define-tag NeedMore accum paren-level)
@@ -66,17 +71,17 @@
           [_ (newline)])]
       [_ (indent-printf "Oh my, what have you done to ~a?!\n" name)])
     (if (hash-has? 'id info)
-      (indent-printf "val ~a = ~a\n" name (show (eval (@var-id info)
-                                                      (engine-namespace eng))))
+      (indent-printf "val ~a = ~a\n" name (repl-show (eval (@var-id info)
+                                                       (engine-namespace eng))))
       (indent-printf "I don't even know what value ~a has!\n" name))))
 
 ;; TODO: refactor this
 (define (repl [hack #t])
   (when hack
     (read-line)) ;; crude hack to make this work inside the racket repl
-  (define-values (resolve-env eng) (make-runtime))
-  (let eval-next ([parse-env builtin-parse-env]
-                  [resolve-env resolve-env]
+  (define eng (new-engine))
+  (let eval-next ([parse-env (engine-parse-env eng)]
+                  [resolve-env (engine-resolve-env eng)]
                   [toks '()])
     (define (print-error loc msg)
       ;; TODO?: make locations work
@@ -91,7 +96,7 @@
           (debugf-pretty " * IR:" code)
           (define value (eval code (engine-namespace eng)))
           (unless (void? value)
-            (printf "~a\n" (show value)))
+            (printf "~a\n" (repl-show value)))
           (result:empty)]
         [(Result result)
           (show-result eng result)
