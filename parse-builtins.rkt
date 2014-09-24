@@ -215,7 +215,8 @@
   (list env-empty (q-fmap (partial decl:extension name) empty join)))
 
 (define @decl:extension
-  (record [parser (<$> make-@extension p-var-id
+  ;; should this be a caps-id or a var-id?
+  (record [parser (<$> make-@extension p-caps-id
                     (parens (seq* p-expr (*> comma p-expr))))]))
 
 (define @decl:unquote
@@ -508,10 +509,24 @@
               eng))
           (return (result:nodule name result))))]))
 
+(define @top:extend
+  (record
+    [(parse-eval resolve-env eng)
+      (define (run e)
+        (eval (expr-compile (q-run e) resolve-env) (engine-namespace eng)))
+      (define (extend e-point e-value)
+        (define point (run e-point))
+        (define value (run e-value))
+        (record
+          [resolveExt env-empty]
+          [parseExt (env-single point value)]))
+      (<$> extend p-expr (*> (keyword "with") p-expr))]))
+
 (define builtin-@tops
   (hash
     (TID "module")  @top:nodule
-    (TID "import")  @top:import))
+    (TID "import")  @top:import
+    (TID "extend")  @top:extend))
 
 
 ;; -- quote forms --

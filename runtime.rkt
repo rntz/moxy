@@ -6,10 +6,14 @@
 (require "util.rkt")
 (require "values.rkt")
 (require "objects.rkt")
+(require "lex.rkt")                     ;for the token tags
 (require "env.rkt")
 (require "engine.rkt")
 (require "core-forms.rkt")              ;@vars-var
+(require "pcomb.rkt")
+(require "parse.rkt")
 (require (only-in "parse-builtins.rkt" builtin-parse-env))
+(require (prefix-in q- "quasi.rkt"))
 
 (provide new-engine)
 
@@ -111,7 +115,7 @@
       [map hash-map]
       [union hash-union])
 
-    (#:nodule Moxy
+    (#:nodule Ext
       [exprs @exprs]
       [infixExprs @infixes]
       [pats @pats]
@@ -121,6 +125,21 @@
       [modules @nodules]
       [vars @vars]
       [quoteForms @quote-forms])
+
+    (#:nodule Quasi
+      [pure q-pure] [lift q-lift] [fmap q-fmap] [ap q-ap]
+      [quasi q-quasi] [unquo q-unquo] [quo q-quo]
+      [seq q-seq] [list q-seq*] [run q-run])
+
+    (#:nodule Parse
+      [pure return])
+
+    (#:nodule Lex
+      [#:tag tag:TLPAREN TLPAREN] [#:tag tag:TRPAREN TRPAREN]
+      [#:tag tag:TLBRACK TLBRACK] [#:tag tag:TRBRACK TRBRACK]
+      [#:tag tag:TLBRACE TLBRACE] [#:tag tag:TRBRACE TRBRACE]
+      [#:tag tag:TID TID] [#:tag tag:TSYM TSYM]
+      [#:tag tag:TNUM TNUM] [#:tag tag:TSTR TSTR])
     ))
 
 ;; This is a crude hack but it works, so whatever. Ideally we'd expose only the
