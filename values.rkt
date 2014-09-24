@@ -21,7 +21,7 @@
   hash-put hash-put-with hash-delete hash-alter
   hash-map hash-union)
 
-(define (hash-empty) (hash))
+(define hash-empty (hash))
 (define (hash-single k v) (hash k v))
 (define (hash-from-list kvs)
   ;; convert a list-list like ((a x) (b y)) to a cons-list ((a . x) (b . y)).
