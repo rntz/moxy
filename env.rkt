@@ -66,6 +66,8 @@
 ;; Convention: extension point names begin with "@"
 
 (provide
+  @quote-forms @quote-forms-join @quote-forms-empty
+
   @exprs @exprs-join @exprs-empty
   define-@expr @expr @expr-parser
 
@@ -90,6 +92,10 @@
   define-@nodule @nodule @nodule-name @nodule-resolveExt @nodule-parseExt
   @nodules-nodule @nodule->result
   resolve-nodule-path)
+
+;; Quasiquotation form handlers.
+;; Maps tokens to (Parse (Q A)), for some AST type A (eg. expr, decl, pat).
+(define-ExtPoint @quote-forms hash-union (hash))
 
 ;; Maps tokens to (@expr)s
 (define-ExtPoint @exprs hash-union (hash))
