@@ -60,7 +60,7 @@
 ;; q-listish : Parse (Q a) -> Parse (Q [a])
 (define p-unquo-expr (<$> q-unquo (choice p-atomic-expr (parens p-expr))))
 (define (q-listish p)
-  (define elem (choice (*> (keysym "$@") p-unquo-expr) (<$> q-seq* p)))
+  (define elem (choice (*> (keysym "..") p-unquo-expr) (<$> q-seq* p)))
   (<$> (compose (q-lift append*) q-seq) (listish elem)))
 
 ;; p-pats : Parse (Q [Pat])
@@ -267,7 +267,7 @@
     (TID "local")   @decl:local
     (TID "open")    @decl:open
     (TID "extension") @decl:extension
-    (TSYM "$")      @decl:unquote))
+    (TSYM ".")      @decl:unquote))
 
 
 ;; -- exprs --
@@ -377,7 +377,7 @@
     (TID "case") @expr:case
     (TSYM ":")   @expr:quasiquote
     (TSYM "::")  @expr:quote
-    (TSYM "$")   @expr:unquote
+    (TSYM ".")   @expr:unquote
     (TSYM "'")   @expr:symbol ;; TODO: remove
     ))
 
@@ -493,7 +493,7 @@
 (define @pat:unquote p-unquo-expr)
 
 (define builtin-@pats
-  (hash (TSYM "$") @pat:unquote))
+  (hash (TSYM ".") @pat:unquote))
 
 
 ;; -- infix patterns --
