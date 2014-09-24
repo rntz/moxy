@@ -69,7 +69,7 @@
   [ident-init (:or alphabetic (char-set "_"))]
   [ident-mid  (:or ident-init numeric)]
   [ident (:seq ident-init (:* ident-mid))]
-  [symbol (:+ (char-set "`'~!@$%^&*-_=+\\:<>/?|,.;"))]
+  [symbol (:+ (char-set "`'~!@$%^&*-=+\\:<>/?|,.;"))]
   ;; Might want to loosen number definition.
   ;; Currently rejects: ".0" "1." "-.0" etc.
   ;; Note that "-12.-3" lexes as: (-12 .- 3)
