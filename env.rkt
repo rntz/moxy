@@ -74,11 +74,8 @@
   ;; TODO: unify @infix-exprs & @infix-pats somehow?
   @infix-pats @infix-pats-join @infix-pats-empty
   define-@infix-pat @infix-pat @infix-pat-precedence @infix-pat-parse
-
   @decls @decls-join @decls-empty
-
   @tops @tops-join @tops-empty
-  define-@top @top @top-parse-eval
 
   @nodules @nodules-join @nodules-empty
   define-@nodule @nodule @nodule-name @nodule-resolveExt @nodule-parseExt
@@ -115,11 +112,8 @@
 ;; Maps tokens to (Parse (ParseEnv, Q Decl))
 (define-ExtPoint @decls hash-union (hash))
 
-;; Maps tokens to (@top)s.
+;; Maps tokens to (Resolve Env, Engine -> Parse Result)s.
 (define-ExtPoint @tops hash-union (hash))
-(define-iface @top
-  ;; ResolveEnv, Engine -> Parser Result
-  (parse-eval resolve-env engine))
 
 ;; Maps symbols to (@nodule)s
 (define-ExtPoint @nodules hash-union (hash))

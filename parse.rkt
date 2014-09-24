@@ -290,15 +290,12 @@
                            (hash-lookup t (env-get @decls parse-env))
                            @top:@decl)]
                  [x x])))
-    (@top-parse-eval ext resolve-env eng)))
+    (ext resolve-env eng)))
 
 
 ;; This has to go here rather than parse-builtins.rkt since we use it in
 ;; parse-eval-one to handle regular decls in top-level position.
-(define (@top:@decl decl)
-  (record [parse-eval (parse-eval-decl decl)]))
-
-(define ((parse-eval-decl decl-parser) resolve-env eng)
+(define ((@top:@decl decl-parser) resolve-env eng)
   (>>= decl-parser
     (lambda (d)
       (match-define `(,decl-env ,decl-q) d)

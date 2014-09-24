@@ -500,56 +500,45 @@
   [parseExt (env-single @nodules (@nodules-nodule name result))])
 
 ;; 'module' ID '{' TOPS '}'
-(define @top:nodule
-  (record
-    [(parse-eval resolve-env eng)
-     (<$> result:nodule
-       p-caps-id (braces (parse-eval resolve-env eng)))]))
+(define (@top:nodule resolve-env eng)
+  (<$> result:nodule p-caps-id (braces (parse-eval resolve-env eng))))
 
 ;; import Name
-(define @top:import
-  (record
-    [(parse-eval resolve-env eng)
-      (>>= p-caps-id
-        (lambda (name)
-          (define result
-            (parse-eval-file
-              (format "~a.mox" (string-downcase (symbol->string name)))
-              (engine-parse-env eng)
-              (engine-resolve-env eng)
-              eng))
-          (return (result:nodule name result))))]))
+(define (@top:import resolve-env eng)
+  (>>= p-caps-id
+    (lambda (name)
+      (define result
+        (parse-eval-file
+          (format "~a.mox" (string-downcase (symbol->string name)))
+          (engine-parse-env eng)
+          (engine-resolve-env eng)
+          eng))
+      (return (result:nodule name result)))))
 
-(define @top:extend
-  (record
-    [(parse-eval resolve-env eng)
-      (define (run e)
-        (eval (expr-compile (q-run e) resolve-env) (engine-namespace eng)))
-      (define (extend e-point e-value)
-        (define point (run e-point))
-        (define value (run e-value))
-        (record
-          [resolveExt env-empty]
-          [parseExt (env-single point value)]))
-      (<$> extend p-expr (*> (keyword "with") p-expr))]))
+(define (@top:extend resolve-env eng)
+  (define (run e)
+    (eval (expr-compile (q-run e) resolve-env) (engine-namespace eng)))
+  (define (extend e-point e-value)
+    (define point (run e-point))
+    (define value (run e-value))
+    (record
+      [resolveExt env-empty]
+      [parseExt (env-single point value)]))
+  (<$> extend p-expr (*> (keyword "with") p-expr)))
+
+(define (@top:private resolve-env eng)
+  (pdo priv-result <- (<* (parse-eval resolve-env eng) (keyword "in"))
+    (local-env (result-parseExt priv-result)
+      (<*
+        (parse-eval (env-join resolve-env (result-resolveExt priv-result)) eng)
+        (optional (keyword "end"))))))
 
 (define builtin-@tops
   (hash
     (TID "module")  @top:nodule
     (TID "import")  @top:import
-    (TID "extend")  @top:extend))
-
-
-;; -- quote forms --
-(define builtin-@quote-forms
-  (hash
-    (TID "e") p-expr
-    ;; cadr is needed to grab the (Q Decl) from the (ParseEnv, Q Decl)
-    ;; TODO: should there be some way of getting the ParseEnv, too?
-    (TID "d") (<$> cadr p-decl)
-    (TID "p") p-pat
-    ;; TODO?: more quasiquotation types (top?)
-    ))
+    (TID "extend")  @top:extend
+    (TID "private") @top:private))
 
 
 ;; -- The default/built-in parser extensions --
