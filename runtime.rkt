@@ -117,7 +117,7 @@
 
     (#:nodule Ext
       [exprs @exprs]
-      [infixExprs @infixes]
+      [infixExprs @infix-exprs]
       [pats @pats]
       [infixPats @infix-pats]
       [decls @decls]

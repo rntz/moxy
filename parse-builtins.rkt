@@ -82,7 +82,7 @@
 
 ;; make-@val : Q Pat, Q Expr -> (ParseEnv, Q Expr)
 (define (make-@val pat expr) (list env-empty (q-fmap decl:val pat expr)))
-(define @decl:val (record [parser (<$> make-@val p-pat (*> equals p-expr))]))
+(define @decl:val (<$> make-@val p-pat (*> equals p-expr)))
 
 ;; (fun name:Symbol arity:Nat branches:[Branch])
 ;; where Branch = (params:[Pat], body:Expr)
@@ -119,7 +119,7 @@
   (<$> q-seq (seq* (<$> q-pure p-var-id) (parens p-pats) (*> equals p-expr))))
 (define p-fun (<$> (compose (q-lift make-fun) q-seq)
                 (begin-sep-by1 p-fun-clause bar)))
-(define @decl:fun (record [parser (<$> (partial list env-empty) p-fun)]))
+(define @decl:fun (<$> (partial list env-empty) p-fun))
 
 ;; (begin [Decl])
 ;; currently exists only for convenience; not exposed in language
@@ -158,7 +158,7 @@
   ;;
   ;; really, what's going on is that when parsing declarations I want a (State
   ;; ParseEnv); and when parsing other things I want a (Reader ParseEnv) monad.
-  (record [parser (<$> make-@rec (sep-by1 p-decl (keyword "and")))]))
+  (<$> make-@rec (sep-by1 p-decl (keyword "and"))))
 
 ;; (tag name:Symbol params:(Maybe [Symbol]))
 ;; TODO: require tags be upper-case?
@@ -177,8 +177,7 @@
 
 (define (make-@decl i ps) `(,env-empty ,(q-pure (decl:tag i ps))))
 (define @decl:tag
-  (record [parser (<$> make-@decl p-caps-id
-                    (option-maybe (parens (listish p-var-id))))]))
+  (<$> make-@decl p-caps-id (option-maybe (parens (listish p-var-id)))))
 
 ;; TODO: more powerful imports (qualifying, renaming, etc.)
 (define-decl open (path nodule)
@@ -186,7 +185,7 @@
   [resolveExt (@nodule-resolveExt nodule)]
   [(compile env) '()])
 
-(define p-decl-open
+(define @decl:open
   (pdo
     parse-env <- ask
     `(,path ,name) <- (p-qualified p-caps-id)
@@ -197,8 +196,6 @@
       [(Err _)
         ;; TODO: better error message using information from Err
         (fail (format "unbound module: ~a" path))])))
-
-(define @decl:open (record [parser p-decl-open]))
 
 ;; extension name(identity, operator)
 (define-decl extension (name empty join)
@@ -216,12 +213,11 @@
 
 (define @decl:extension
   ;; should this be a caps-id or a var-id?
-  (record [parser (<$> make-@extension p-caps-id
-                    (parens (seq* p-expr (*> comma p-expr))))]))
+  (<$> make-@extension p-caps-id (parens (seq* p-expr (*> comma p-expr)))))
 
 (define @decl:unquote
-  (record [parser (<$> (compose (partial list env-empty) q-unquo)
-                    (choice p-atomic-expr (parens p-expr)))]))
+  (<$> (compose (partial list env-empty) q-unquo)
+    (choice p-atomic-expr (parens p-expr))))
 
 (define builtin-@decls
   (hash
@@ -237,7 +233,7 @@
 ;; -- exprs --
 (provide expr:lambda expr:let expr:if expr:case)
 
-(define @expr:parens (record [parser (<* p-expr rparen)]))
+(define @expr:parens (<* p-expr rparen))
 
 ;; (case-lambda arity:Nat branches:[Branch] on-failure:Expr)
 ;; where Branch = (params:[Pat], body:Expr)
@@ -264,7 +260,7 @@
 
 ;; for now, lambdas don't get multiple branches, but you can pattern-match.
 (define @expr:lambda
-  (record [parser (<$> (q-lift expr:lambda) (parens p-pats) p-expr)]))
+  (<$> (q-lift expr:lambda) (parens p-pats) p-expr))
 
 ;; (let Decl Expr)
 (define-expr let (decl exp)
@@ -273,13 +269,11 @@
     `(letrec ,(decl-compile decl env)
        ,(expr-compile exp (env-join env (decl-resolveExt decl))))])
 
-(define p-let
+(define @expr:let
   (pdo
     `(,e ,decls) <- (<* p-decls (keyword "in"))
     let d (q-fmap decl:begin decls)
     (<$> (partial (q-lift expr:let) d) (local-env e p-expr))))
-
-(define @expr:let (record [parser p-let]))
 
 ;; (if Expr Expr Expr)
 (define-expr if (subject then else)
@@ -290,9 +284,9 @@
        ,(expr-compile else env))])
 
 (define @expr:if
-  (record [parser (<$> (q-lift expr:if) p-expr
-                    (*> (keyword "then") p-expr)
-                    (*> (keyword "else") p-expr))]))
+  (<$> (q-lift expr:if) p-expr
+    (*> (keyword "then") p-expr)
+    (*> (keyword "else") p-expr)))
 
 ;; (case Expr [(Pat, Expr)])
 (define-expr case (subject branches)
@@ -315,8 +309,8 @@
 (define @expr:case
   ;; TODO: shouldn't we be parsing the subject at a certain precedence?
   ;; consider e.g. (case (case x ...) ...)
-  (record [parser (<$> make-@case p-expr
-                    (many (*> bar (seq* p-pat (*> (keysym "->") p-expr)))))]))
+  (<$> make-@case p-expr
+    (many (*> bar (seq* p-pat (*> (keysym "->") p-expr))))))
 
 ;; TODO: this should have an extension point!
 ;; if we did this we could define quasiquote and quote generically, so that
@@ -328,15 +322,12 @@
              (lambda (t) (format "no quote form bound to ~v" t)))
     (parens ext)))
 
-(define @expr:quasiquote (record [parser (<$> q-quasi p-quote-form)]))
-(define @expr:quote (record [parser (<$> q-quo p-quote-form)]))
-
-(define @expr:unquote
-  (record [parser (<$> q-unquo (choice p-atomic-expr (parens p-expr)))]))
+(define @expr:quasiquote (<$> q-quasi p-quote-form))
+(define @expr:quote (<$> q-quo p-quote-form))
+(define @expr:unquote (<$> q-unquo (choice p-atomic-expr (parens p-expr))))
 
 ;; TODO: remove this
-(define @expr:symbol
-  (record [parser (<$> (compose q-pure expr:lit) p-any-id)]))
+(define @expr:symbol (<$> (compose q-pure expr:lit) p-any-id))
 
 (define builtin-@exprs
   (hash
@@ -358,8 +349,8 @@
 (define @infix:call
   (record
     [precedence 11]
-    [(parser func-expr) (<$> (partial (q-lift expr:call) func-expr)
-                             (<* (q-listish p-expr) rparen))]))
+    [(parse func-expr) (<$> (partial (q-lift expr:call) func-expr)
+                         (<* (q-listish p-expr) rparen))]))
 
 ;; (seq Expr Expr)
 (define-expr seq (a b)
@@ -369,13 +360,13 @@
 (define @infix:seq
   (record
     [precedence 0]
-    [(parser first-expr)
+    [(parse first-expr)
       (<$> (partial (q-lift expr:seq) first-expr) (p-expr-at 0))]))
 
 ;; infix operators
 ;; associativity must be Left or Right.
-(define-@infix oper (assoc precedence function)
-  [(parser left-arg)
+(define-@infix-expr oper (assoc precedence function)
+  [(parse left-arg)
     (<$>
       (lambda (right-arg) (q-fmap (partial expr:call (expr:lit function))
                        (q-seq* left-arg right-arg)))
@@ -410,7 +401,7 @@
 ;; TODO: string append operator.
 ;; TODO: prefix-ifying an infix operator / slicing syntax.
 
-(define builtin-@infixes
+(define builtin-@infix-exprs
   (hash
     TLPAREN    @infix:call
     (TSYM ";") @infix:seq
@@ -420,16 +411,16 @@
 
     ;; TODO: make (in)equality operators nonassociative
     ;; TODO: generic inequality operators
-    (TSYM "==") (@infix:oper L 5 (compose truthify equal?))
-    (TSYM "<")  (@infix:oper L 5 (compose truthify <))
-    (TSYM ">")  (@infix:oper L 5 (compose truthify >))
-    (TSYM "<=") (@infix:oper L 5 (compose truthify <=))
-    (TSYM ">=") (@infix:oper L 5 (compose truthify >=))
+    (TSYM "==") (@infix-expr:oper L 5 (compose truthify equal?))
+    (TSYM "<")  (@infix-expr:oper L 5 (compose truthify <))
+    (TSYM ">")  (@infix-expr:oper L 5 (compose truthify >))
+    (TSYM "<=") (@infix-expr:oper L 5 (compose truthify <=))
+    (TSYM ">=") (@infix-expr:oper L 5 (compose truthify >=))
 
-    (TSYM "+")  (@infix:oper L 7 +)
-    (TSYM "-")  (@infix:oper L 7 -)
-    (TSYM "*")  (@infix:oper L 8 *)
-    (TSYM "/")  (@infix:oper L 8 /)
+    (TSYM "+")  (@infix-expr:oper L 7 +)
+    (TSYM "-")  (@infix-expr:oper L 7 -)
+    (TSYM "*")  (@infix-expr:oper L 8 *)
+    (TSYM "/")  (@infix-expr:oper L 8 /)
     ))
 
 
@@ -460,13 +451,10 @@
 
 ;; TODO: pat:and, pat:or, pat:guard
 
-(define @pat:unquote
-  (record [parser (<$> q-unquo (choice p-atomic-expr (parens p-expr)))]))
+(define @pat:unquote (<$> q-unquo (choice p-atomic-expr (parens p-expr))))
 
 (define builtin-@pats
-  (hash
-    (TSYM "$") @pat:unquote
-    ))
+  (hash (TSYM "$") @pat:unquote))
 
 
 ;; -- infix patterns --
@@ -549,7 +537,7 @@
   (hash
     @decls builtin-@decls
     @exprs builtin-@exprs
-    @infixes builtin-@infixes
+    @infix-exprs builtin-@infix-exprs
     @pats builtin-@pats
     @infix-pats builtin-@infix-pats
     @tops builtin-@tops

@@ -67,23 +67,15 @@
 
 (provide
   @quote-forms @quote-forms-join @quote-forms-empty
-
   @exprs @exprs-join @exprs-empty
-  define-@expr @expr @expr-parser
-
-  ;; TODO: rename to @infix-exprs
-  @infixes @infixes-join @infixes-empty
-  define-@infix @infix @infix-precedence @infix-parser
-
+  @infix-exprs @infix-exprs-join @infix-exprs-empty
+  define-@infix-expr @infix-expr @infix-expr-precedence @infix-expr-parse
   @pats @pats-join @pats-empty
-  define-@pat @pat @pat-parser
-
   ;; TODO: unify @infix-exprs & @infix-pats somehow?
   @infix-pats @infix-pats-join @infix-pats-empty
-  define-@infix-pat @infix-pat @infix-pat-precedence @infix-pat-parser
+  define-@infix-pat @infix-pat @infix-pat-precedence @infix-pat-parse
 
   @decls @decls-join @decls-empty
-  define-@decl @decl @decl-parser
 
   @tops @tops-join @tops-empty
   define-@top @top @top-parse-eval
@@ -97,39 +89,31 @@
 ;; Maps tokens to (Parse (Q A)), for some AST type A (eg. expr, decl, pat).
 (define-ExtPoint @quote-forms hash-union (hash))
 
-;; Maps tokens to (@expr)s
+;; Maps tokens to (Parse (Q Expr))
 (define-ExtPoint @exprs hash-union (hash))
-(define-iface @expr
-  parser     ;; Parser Expr
-  )
 
-;; Maps tokens to (@infix)es
-(define-ExtPoint @infixes hash-union (hash))
-(define-iface @infix
+;; Maps tokens to (@infix-expr)s
+(define-ExtPoint @infix-exprs hash-union (hash))
+(define-iface @infix-expr
   precedence               ;; Int
-  ;; parser : Expr -> Parser Expr
+  ;; parse : Q Expr -> Parse (Q Expr)
   ;; takes the "left argument" to the infix operator.
   ;; needs to parse the right argument(s) itself.
   ;; so this really allows any non-prefix operator, not just infix
   ;; (postfix or ternary operators, for example)
-  (parser left-expr))
+  (parse left-expr))
 
-;; Maps tokens to (@pat)s
+;; Maps tokens to (Q Pat)s
 (define-ExtPoint @pats hash-union (hash))
-(define-iface @pat
-  parser) ;; Parser Pat
 
 (define-ExtPoint @infix-pats hash-union (hash))
 (define-iface @infix-pat
   precedence               ;; Int
-  ;; parser : Expr -> Parser Expr, see @infix-parser above for explanation
-  (parser left-pat))
+  ;; parse : Pat -> Parse (Q Pat), see @infix-expr-parser, above
+  (parse left-pat))
 
-;; Maps tokens to (@decl)s.
+;; Maps tokens to (Parse (ParseEnv, Q Decl))
 (define-ExtPoint @decls hash-union (hash))
-(define-iface @decl
-  parser ;; Parser Decl (see "parts of speech" below for what Decl is)
-  )
 
 ;; Maps tokens to (@top)s.
 (define-ExtPoint @tops hash-union (hash))

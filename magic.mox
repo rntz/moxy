@@ -3,10 +3,8 @@
 
 val parseMagic = Parse.pure(Quasi.pure(:e(say("why, it's magic!"); 17)))
 
-val extMagic = Hash.single(symbol("parser"), parseMagic)
-
 extend Ext.exprs with
-  Hash.single(Lex.TID("magic"), extMagic)
+  Hash.single(Lex.TID("magic"), parseMagic)
 
 # utter hack.
 val racketFalse = racketEval(symbol("procedure?"))(0)
@@ -14,9 +12,7 @@ val racketFalse = racketEval(symbol("procedure?"))(0)
 fun parseMoreMagic(env, str, hardk, softk, ok) =
   (say("what foolery is this?"); ok(racketFalse, Quasi.pure(:e(say("isn't it fun?"); 23))))
 
-val extMoreMagic = Hash.single(symbol("parser"), parseMoreMagic)
-
 extend Ext.exprs with
-  Hash.single(Lex.TID("foolery"), extMoreMagic)
+  Hash.single(Lex.TID("foolery"), parseMoreMagic)
 
 fun magic() = magic + foolery

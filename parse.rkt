@@ -165,7 +165,7 @@
     ;; Grab a token and look it up in @exprs. Fail soft if it's absent.
     x <- (try-one-maybe (lambda (t) (hash-lookup t (env-get @exprs parse-env))))
     ;; Run the parser we found in @exprs!
-    (@expr-parser x)))
+    x))
 
 ;; Tries to parse an infix continuation for `left-expr' of precedence at least
 ;; `prec' (i.e. binding at least as tightly as `prec').
@@ -179,10 +179,10 @@
                ;; precedence is at least `prec' (i.e. as tight or
                ;; tighter-binding as what we're currently looking for).
                (lambda (t) (maybe-filter
-                        (hash-lookup t (env-get @infixes parse-env))
-                        (lambda (x) (<= prec (@infix-precedence x))))))
+                        (hash-lookup t (env-get @infix-exprs parse-env))
+                        (lambda (x) (<= prec (@infix-expr-precedence x))))))
       ;; Pass off to their parser
-      x <- (@infix-parser ext left-expr)
+      x <- (@infix-expr-parse ext left-expr)
       ;; Try to keep parsing more operations afterward.
       ;;
       ;; Note: This handles left-associativity automatically. For
@@ -221,7 +221,7 @@
     ;; Grab a token and look it up in @pats. Fail soft if it's absent.
     x <- (try-one-maybe (lambda (t) (hash-lookup t (env-get @pats parse-env))))
     ;; Run the parser we found in @pats!
-    (@pat-parser x)))
+    x))
 
 (define (p-infix-pat prec left-pat)
   (option left-pat
@@ -233,7 +233,7 @@
                (lambda (t) (maybe-filter
                         (hash-lookup t (env-get @infix-pats parse-env))
                         (lambda (x) (<= prec (@infix-pat-precedence x))))))
-      x <- (@infix-pat-parser ext left-pat)
+      x <- (@infix-pat-parse ext left-pat)
       ;; Try to keep parsing more operations afterward.
       (p-infix-pat prec x))))
 
@@ -246,7 +246,7 @@
     ext <- (try-one-maybe
              (lambda (t) (hash-lookup t (env-get @decls parse-env))))
     ;; Pass off to its parser
-    (@decl-parser ext)))
+    ext))
 
 ;; p-decls : Parse (ParseEnv, Q [Decl])
 (define p-decls
@@ -296,7 +296,7 @@
 ;; This has to go here rather than parse-builtins.rkt since we use it in
 ;; parse-eval-one to handle regular decls in top-level position.
 (define (@top:@decl decl)
-  (record [parse-eval (parse-eval-decl (@decl-parser decl))]))
+  (record [parse-eval (parse-eval-decl decl)]))
 
 (define ((parse-eval-decl decl-parser) resolve-env eng)
   (>>= decl-parser
