@@ -200,6 +200,24 @@
 
 (define @decl:open (record [parser p-decl-open]))
 
+;; extension name(identity, operator)
+(define-decl extension (name empty join)
+  [(sexp) `(extension ,name ,(expr-sexp empty) ,(expr-sexp join))]
+  [id (mkid name)]
+  [resolveExt (env-single @vars (@vars-var name id))]
+  [(compile env)
+    `((,id (,make-ExtPoint ',name
+             ,(expr-compile join env)
+             ,(expr-compile empty env))))])
+
+(define (make-@extension name empty-join)
+  (match-define `(,empty ,join) empty-join)
+  (list env-empty (q-fmap (partial decl:extension name) empty join)))
+
+(define @decl:extension
+  (record [parser (<$> make-@extension p-var-id
+                    (parens (seq* p-expr (*> comma p-expr))))]))
+
 (define @decl:unquote
   (record [parser (<$> (compose (partial list env-empty) q-unquo)
                     (choice p-atomic-expr (parens p-expr)))]))
@@ -211,6 +229,7 @@
     (TID "tag")     @decl:tag
     (TID "rec")     @decl:rec
     (TID "open")    @decl:open
+    (TID "extension") @decl:extension
     (TSYM "$")      @decl:unquote))
 
 
@@ -488,14 +507,6 @@
               (engine-resolve-env eng)
               eng))
           (return (result:nodule name result))))]))
-
-;;; FIXME TODO
-;; "extension point name(identity, operator)"
-;; (define @top:extension
-;;   (record
-;;     [(parse-eval resolve-env eng)
-      
-;;       ]))
 
 (define builtin-@tops
   (hash
