@@ -1,0 +1,51 @@
+private
+  open Lex
+  open Parse
+in
+
+# Let's make writing parsers a bit easier, shall we?
+# First, a syntax for Parse.pure:
+#     @x == Parse.pure(x)
+val parsePure =
+  # unhygienic :(
+  let fun f(x) = :e(Parse.pure(.x))
+  # NB. precedence 12 prohibits even function application
+  in map(Quasi.lift(f), exprAt(12))
+
+extend Ext.exprs with
+  Hash.single(TSYM("@"), parsePure)
+
+# Here's an example:
+# val parseInc =
+#   bind(parens(expr), \ (x)
+#     let fun trans(y) = :e(1 + .y)
+#     in @Quasi.map(trans, x))
+
+# extend Ext.exprs with
+#   Hash.single(Lex.TID("inc"), parseInc)
+
+# Okay, now we make a syntax for Parse.map:
+#     f@(x,y,z) = Parse.map(f,x,y,z)
+fun parseMap(funcExpr) =
+  let fun make(f,a) = :e(Parse.map(.f, ..a))
+  in map(Quasi.lift(make), @funcExpr, parens(listishQ(expr)))
+
+val extMap =
+  Hash.put(symbol("precedence"), 11,
+    Hash.single(symbol("parse"), parseMap))
+
+extend Ext.infixExprs with
+  Hash.single(Lex.TSYM("@"), extMap)
+
+# Now we do the same for Quasi, only with ^ instead of @
+val parseQPure = Quasi.lift(\(x) :e(Quasi.pure(.x)))@(exprAt(12))
+extend Ext.exprs with Hash.single(Lex.TSYM("^"), parseQPure)
+
+fun parseQMap(funcExpr) =
+  let fun make(f,as) = :e(Quasi.map(.f, ..as))
+  in Quasi.lift(make)@(@funcExpr, parens(listishQ(expr)))
+
+extend Ext.infixExprs with
+  Hash.single(Lex.TSYM("^"),
+    Hash.put(symbol("precedence"), 11,
+      Hash.single(symbol("parse"), parseQMap)))
