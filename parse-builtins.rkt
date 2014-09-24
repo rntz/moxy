@@ -137,6 +137,11 @@
           (loop ds (cons (decl-compile d env) accum)
             (env-join env (decl-resolveExt d)))]))])
 
+(define p-decl-group
+  (<$> (match-lambda [`(,env ,ds) `(,env ,(q-fmap decl:begin ds))]) p-decls))
+
+(define @decl:begin (<* p-decl-group (keyword "end")))
+
 ;; (rec [Decl])
 (define-decl rec (decls)
   [(sexp) `(rec ,@(map decl-sexp decls))]
@@ -178,6 +183,23 @@
 (define (make-@decl i ps) `(,env-empty ,(q-pure (decl:tag i ps))))
 (define @decl:tag
   (<$> make-@decl p-caps-id (option-maybe (parens (listish p-var-id)))))
+
+;; (local Decl Decl)
+(define-decl local (decl body)
+  [(sexp) `(local ,(decl-sexp decl) ,(decl-sexp body))]
+  [resolveExt (decl-resolveExt body)]
+  [(compile env)
+    (append
+      (decl-compile decl env)
+      (decl-compile body (env-join env (decl-resolveExt decl))))])
+
+(define @decl:local
+  (pdo
+    `(,env1 ,decl1) <- p-decl-group
+    (keyword "in")
+    `(,env2 ,decl2) <- (local-env env1 p-decl-group)
+    (keyword "end")
+    (return `(,env2 ,(q-fmap decl:local decl1 decl2)))))
 
 ;; TODO: more powerful imports (qualifying, renaming, etc.)
 (define-decl open (path nodule)
@@ -225,6 +247,8 @@
     (TID "fun")     @decl:fun
     (TID "tag")     @decl:tag
     (TID "rec")     @decl:rec
+    (TID "begin")   @decl:begin
+    (TID "local")   @decl:local
     (TID "open")    @decl:open
     (TID "extension") @decl:extension
     (TSYM "$")      @decl:unquote))
@@ -271,8 +295,7 @@
 
 (define @expr:let
   (pdo
-    `(,e ,decls) <- (<* p-decls (keyword "in"))
-    let d (q-fmap decl:begin decls)
+    `(,e ,d) <- (<* p-decl-group (keyword "in"))
     (<$> (partial (q-lift expr:let) d) (local-env e p-expr))))
 
 ;; (if Expr Expr Expr)
