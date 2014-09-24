@@ -96,17 +96,32 @@
     ;; TODO: a module containing the extension points, parser
     ;; combinators, etcetera
 
-    [emptyHash hash-empty]
-    [hashIsEmpty (compose truthify hash-empty?)]
-    [hashSize hash-count]
-    [hashSingle hash-single]
-    [hashHas (compose truthify hash-has?)]
-    [hashLookup hash-lookup] [hashGet hash-get]
-    [hashPut hash-put] [hashPutWith hash-put-with]
-    [hashDelete hash-delete]
-    [hashAlter hash-alter]
-    [hashMap hash-map]
-    [hashUnion hash-union]))
+    (#:nodule Hash
+      [empty hash-empty]
+      [isEmpty (compose truthify hash-empty?)]
+      [size hash-count]
+      [single hash-single]
+      [has (compose truthify hash-has?)]
+      [lookup hash-lookup]
+      [get hash-get]
+      [put hash-put]
+      [putWith hash-put-with]
+      [delete hash-delete]
+      [alter hash-alter]
+      [map hash-map]
+      [union hash-union])
+
+    (#:nodule Moxy
+      [exprs @exprs]
+      [infixExprs @infixes]
+      [pats @pats]
+      [infixPats @infix-pats]
+      [decls @decls]
+      [tops @tops]
+      [modules @nodules]
+      [vars @vars]
+      [quoteForms @quote-forms])
+    ))
 
 ;; This is a crude hack but it works, so whatever. Ideally we'd expose only the
 ;; set of language primitives we actually need, but racket's baroque module and
