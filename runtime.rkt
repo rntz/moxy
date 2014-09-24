@@ -127,12 +127,56 @@
       [quoteForms @quote-forms])
 
     (#:nodule Quasi
-      [pure q-pure] [lift q-lift] [fmap q-fmap] [ap q-ap]
+      [pure q-pure] [lift q-lift] [map q-fmap] [ap q-ap]
       [quasi q-quasi] [unquo q-unquo] [quo q-quo]
-      [seq q-seq] [list q-seq*] [run q-run])
+      ;; [seq q-seq] [list q-seq*]
+      [run q-run])
 
     (#:nodule Parse
-      [pure return])
+      ;; from pcomb.rkt
+      [pure return] lift [map <$>] [ap <*>] [bind >>=]
+      [join (lambda (k) (>>= k identity))]
+      fail
+      try ask local
+      psum choice peof
+      option optional [optionMaybe option-maybe]
+      ;;; these all return racket lists
+      ;; many many1
+      ;; [skipMany skip-many] [skipMany1 skip-many1]
+      ;; [sepBy sep-by] [sepBy1 sep-by1]
+      ;; [endBy end-by] [endBy1 end-by1]
+      ;; [sepEndBy sep-end-by] [sepEndBy1 sep-end-by1]
+      ;; [beginSepBy begin-sep-by] [beginSepBy1 begin-sep-by1]
+      ;; [beginSepEndBy begin-sep-end-by] [beginSepEndBy1 begin-sep-end-by1]
+      between
+      [mapByMaybe pmap-maybe]
+      ;; [filterBy pfilter] ;; need to adapt for booleans
+      ;; take ;; returns a racket list
+      [takeOne take-one]
+      [satisfy (lambda (p . as) (apply satisfy (compose truthy? p) as))]
+      [tryOneMaybe try-one-maybe]
+      [anyOf any-of] [noneOf none-of]
+
+      ;; from parse.rkt
+      [localEnv local-env]
+      keyword keysym comma dot semi equals bar
+      lparen rparen lbrace rbrace lbrack rbrack
+      parens braces brackets
+      [string p-str] [number p-num] [literal p-lit]
+      [id p-id] [anyId p-any-id] [varId p-var-id] [capsId p-caps-id]
+      ;; TODO: p-qualified, p-var return a list
+
+      [expr p-expr] [exprAt p-expr-at] [atomicExpr p-atomic-expr]
+      [prefixExpr p-prefix-expr] [infixExpr p-infix-expr]
+
+      [pat p-pat] [patAt p-pat-at] [atomicPat p-atomic-pat]
+      [prefixPat p-prefix-pat] [infixPat p-infix-pat]
+
+      ;; TODO: decl etc. return lists!
+      ;; [decl p-decl] [decls p-decls]
+
+      ;; TODO: parse-eval & co
+      )
 
     (#:nodule Lex
       [#:tag tag:TLPAREN TLPAREN] [#:tag tag:TRPAREN TRPAREN]
