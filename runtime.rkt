@@ -97,6 +97,10 @@
     [racketEval eval]
     [eval (lambda (e) (eval (expr-compile e env-empty)))]
 
+    ;; convenience
+    [sexp (lambda (x) ((hash-get 'sexp x)))]
+    [add (lambda (x y) (+ x y))]
+
     ;; TODO: a module containing the extension points, parser
     ;; combinators, etcetera
 
