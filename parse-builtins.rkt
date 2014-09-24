@@ -12,13 +12,6 @@
 (require "engine.rkt")
 (require (prefix-in q- "quasi.rkt"))
 
-;; TODO: handle unquote-splicing in q-listish.
-;; q-listish : Parse (Q a) -> Parse (Q [a])
-(define (q-listish p) (<$> q-seq (listish p)))
-
-;; p-pats : Parse (Q [Pat])
-(define p-pats (q-listish p-pat))
-
 ;; ir-case: ResolveEnv, IR, IR, [(Pat, Expr)] -> IR
 ;; assumes subject, on-failure are small
 (define (ir-case env subject on-failure branches)
@@ -47,6 +40,31 @@
         (ir-match-each (env-join env (pat-resolveExt pat))
           rest-pat-subjs on-success-expr on-failure-ir)
         on-failure-ir)]))
+
+
+;; -- quote forms --
+(define builtin-@quote-forms
+  (hash
+    (TID "e") p-expr
+    ;; cadr is needed to grab the (Q Decl) from the (ParseEnv, Q Decl)
+    ;; TODO: should there be some way of getting the ParseEnv, too?
+    (TID "d") (<$> cadr p-decl)
+    (TID "p") p-pat
+    ;; TODO?: more quasiquotation types (top?)
+    ))
+
+;; should these really go here?
+(provide p-unquo-expr q-listish)
+
+;; TODO: handle unquote-splicing in q-listish.
+;; q-listish : Parse (Q a) -> Parse (Q [a])
+(define p-unquo-expr (<$> q-unquo (choice p-atomic-expr (parens p-expr))))
+(define (q-listish p)
+  (define elem (choice (*> (keysym "$@") p-unquo-expr) (<$> q-seq* p)))
+  (<$> (compose (q-lift append*) q-seq) (listish elem)))
+
+;; p-pats : Parse (Q [Pat])
+(define p-pats (q-listish p-pat))
 
 
 ;; -- decls --
@@ -237,9 +255,7 @@
   ;; should this be a caps-id or a var-id?
   (<$> make-@extension p-caps-id (parens (seq* p-expr (*> comma p-expr)))))
 
-(define @decl:unquote
-  (<$> (compose (partial list env-empty) q-unquo)
-    (choice p-atomic-expr (parens p-expr))))
+(define @decl:unquote (<$> (partial list env-empty) p-unquo-expr))
 
 (define builtin-@decls
   (hash
@@ -347,7 +363,7 @@
 
 (define @expr:quasiquote (<$> q-quasi p-quote-form))
 (define @expr:quote (<$> q-quo p-quote-form))
-(define @expr:unquote (<$> q-unquo (choice p-atomic-expr (parens p-expr))))
+(define @expr:unquote p-unquo-expr)
 
 ;; TODO: remove this
 (define @expr:symbol (<$> (compose q-pure expr:lit) p-any-id))
@@ -474,7 +490,7 @@
 
 ;; TODO: pat:and, pat:or, pat:guard
 
-(define @pat:unquote (<$> q-unquo (choice p-atomic-expr (parens p-expr))))
+(define @pat:unquote p-unquo-expr)
 
 (define builtin-@pats
   (hash (TSYM "$") @pat:unquote))

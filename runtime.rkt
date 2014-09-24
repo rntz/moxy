@@ -12,7 +12,7 @@
 (require "core-forms.rkt")              ;@vars-var
 (require "pcomb.rkt")
 (require "parse.rkt")
-(require (only-in "parse-builtins.rkt" builtin-parse-env))
+(require "parse-builtins.rkt")
 (require (prefix-in q- "quasi.rkt"))
 
 (provide new-engine)
@@ -171,6 +171,9 @@
 
       [pat p-pat] [patAt p-pat-at] [atomicPat p-atomic-pat]
       [prefixPat p-prefix-pat] [infixPat p-infix-pat]
+
+      ;; ah, whatever
+      listish [listishQ q-listish]
 
       ;; TODO: decl etc. return lists!
       ;; [decl p-decl] [decls p-decls]
