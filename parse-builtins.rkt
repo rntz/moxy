@@ -369,7 +369,7 @@
 ;; -- infixes --
 (provide expr:seq)
 
-(define @infix:call
+(define @infix-expr:call
   (record
     [precedence 11]
     [(parse func-expr) (<$> (partial (q-lift expr:call) func-expr)
@@ -380,7 +380,7 @@
   [(sexp) `(begin ,(expr-sexp a) ,(expr-sexp b))]
   [(compile env) `(begin ,(expr-compile a env) ,(expr-compile b env))])
 
-(define @infix:seq
+(define @infix-expr:seq
   (record
     [precedence 0]
     [(parse first-expr)
@@ -426,8 +426,8 @@
 
 (define builtin-@infix-exprs
   (hash
-    TLPAREN    @infix:call
-    (TSYM ";") @infix:seq
+    TLPAREN    @infix-expr:call
+    (TSYM ";") @infix-expr:seq
 
     ;; TODO: ||, &&, function composition, exponentiation, parser-combinators
     ;; elm-style "|>" operator?
