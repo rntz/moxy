@@ -24,8 +24,8 @@
   p-any-id p-id p-var-id p-caps-id
   p-qualified p-var
   listish
-  p-expr p-expr-at p-prefix-expr-at p-atomic-expr p-infix-expr
-  p-pat p-pat-at p-atomic-pat p-prefix-pat-at p-infix-pat
+  p-expr p-expr-at p-prefix-expr p-atomic-expr p-infix-expr
+  p-pat p-pat-at p-atomic-pat p-prefix-pat p-infix-pat
   p-decl p-decls
   parse-eval parse-eval-one)
 
@@ -129,11 +129,11 @@
 ;; Note on precedence: Larger precedences bind tighter than smaller, and
 ;; right-associative binds tighter than left-associative.
 (define (p-expr-at prec)
-  (pdo e <- (p-prefix-expr-at prec)
+  (pdo e <- (p-prefix-expr prec)
     (p-infix-expr prec e)))
 
 ;; This doesn't use `prec', but maybe in future it will?
-(define (p-prefix-expr-at prec)
+(define (p-prefix-expr prec)
   (choice p-from-@exprs p-atomic-expr))
 
 ;; TODO: should atomic-expr be extensible?
@@ -196,10 +196,10 @@
 ;; p-pat-at : Parse (Q Pat)
 ;; Parses a pattern at a given precedence.
 (define (p-pat-at prec)
-  (pdo e <- (p-prefix-pat-at prec)
+  (pdo e <- (p-prefix-pat prec)
     (p-infix-pat prec e)))
 
-(define (p-prefix-pat-at prec)
+(define (p-prefix-pat prec)
   (choice
     p-from-@pats
     p-atomic-pat
