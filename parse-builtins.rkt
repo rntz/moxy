@@ -542,6 +542,11 @@
       [parseExt (env-single point value)]))
   (<$> extend p-expr (*> (keyword "with") p-expr)))
 
+(define (@top:hide resolve-env eng)
+  (pdo priv-result <- (parse-eval-one resolve-env eng)
+    (local-env (result-parseExt priv-result)
+      (parse-eval (env-join resolve-env (result-resolveExt priv-result)) eng))))
+
 (define (@top:private resolve-env eng)
   (pdo priv-result <- (<* (parse-eval resolve-env eng) (keyword "in"))
     (local-env (result-parseExt priv-result)
@@ -549,12 +554,17 @@
         (parse-eval (env-join resolve-env (result-resolveExt priv-result)) eng)
         (optional (keyword "end"))))))
 
+(define (@top:begin resolve-env eng)
+  (<* (parse-eval resolve-env eng) (keyword "end")))
+
 (define builtin-@tops
   (hash
     (TID "module")  @top:nodule
     (TID "import")  @top:import
     (TID "extend")  @top:extend
-    (TID "private") @top:private))
+    (TID "private") @top:private
+    (TID "hide")    @top:hide
+    (TID "begin")   @top:begin))
 
 
 ;; -- The default/built-in parser extensions --

@@ -101,8 +101,13 @@
     [sexp (lambda (x) ((hash-get 'sexp x)))]
     [add (lambda (x y) (+ x y))]
 
-    ;; TODO: a module containing the extension points, parser
-    ;; combinators, etcetera
+    (#:nodule List
+      [nil '()] cons list
+      null append [concat (lambda (x) (append* x))]
+      [build build-list]
+      map
+      [filter (lambda (p l) (filter (compose truthy? p) l))]
+      foldr foldl)
 
     (#:nodule Hash
       [empty hash-empty]
@@ -120,15 +125,15 @@
       [union hash-union])
 
     (#:nodule Ext
-      [exprs @exprs]
-      [infixExprs @infix-exprs]
-      [pats @pats]
-      [infixPats @infix-pats]
-      [decls @decls]
-      [tops @tops]
-      [modules @nodules]
-      [vars @vars]
-      [quoteForms @quote-forms])
+      [Exprs @exprs]
+      [InfixExprs @infix-exprs]
+      [Pats @pats]
+      [InfixPats @infix-pats]
+      [Decls @decls]
+      [Tops @tops]
+      [Modules @nodules]
+      [Vars @vars]
+      [QuoteForms @quote-forms])
 
     (#:nodule Quasi
       [pure q-pure] [lift q-lift] [map q-fmap] [ap q-ap]
@@ -156,6 +161,7 @@
       [mapByMaybe pmap-maybe]
       ;; [filterBy pfilter] ;; need to adapt for booleans
       ;; take ;; returns a racket list
+      expect
       [takeOne take-one]
       [satisfy (lambda (p . as) (apply satisfy (compose truthy? p) as))]
       [tryOneMaybe try-one-maybe]

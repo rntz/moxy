@@ -1,51 +1,78 @@
 private
   open Lex
   open Parse
+  open Ext
 in
 
+# Some utility functions
+fun first(a,b) = a
+fun second(a,b) = b
+
+fun testParse(parser) =
+  # env, stream, hardk, softk, ok
+  parser(None, None, first, first, second)
+
+
 # Let's make writing parsers a bit easier, shall we?
 # First, a syntax for Parse.pure:
 #     @x == Parse.pure(x)
-val parsePure =
+hide val parsePure =
   # unhygienic :(
   let fun f(x) = :e(Parse.pure(.x))
   # NB. precedence 12 prohibits even function application
   in map(Quasi.lift(f), exprAt(12))
 
-extend Ext.exprs with
+extend Exprs with
   Hash.single(TSYM("@"), parsePure)
 
-# Here's an example:
-# val parseInc =
-#   bind(parens(expr), \ (x)
-#     let fun trans(y) = :e(1 + .y)
-#     in @Quasi.map(trans, x))
-
-# extend Ext.exprs with
-#   Hash.single(Lex.TID("inc"), parseInc)
-
-# Okay, now we make a syntax for Parse.map:
+# Now a syntax for Parse.map:
 #     f@(x,y,z) = Parse.map(f,x,y,z)
-fun parseMap(funcExpr) =
+hide fun parseMap(funcExpr) =
   let fun make(f,a) = :e(Parse.map(.f, ..a))
   in map(Quasi.lift(make), @funcExpr, parens(listishQ(expr)))
 
-val extMap =
+hide val extMap =
   Hash.put(symbol("precedence"), 11,
     Hash.single(symbol("parse"), parseMap))
 
-extend Ext.infixExprs with
-  Hash.single(Lex.TSYM("@"), extMap)
+extend InfixExprs with
+  Hash.single(TSYM("@"), extMap)
 
+# Now Parse.bind:
+#     (bind x = expr in xyzzy) = Parse.bind(expr, \(x) xyzzy)
+hide val parseBind =
+  let fun make(pat, exp, body) = :e(Parse.bind(.exp, \(.pat) .body))
+  # this Quasi.lift(foo)@(...) pattern keeps coming up a lot
+  in Quasi.lift(make)@(pat, second@(equals, expr), second@(keyword("in"), expr))
+
+extend Exprs with Hash.single(TID("bind"), parseBind)
+
+
 # Now we do the same for Quasi, only with ^ instead of @
-val parseQPure = Quasi.lift(\(x) :e(Quasi.pure(.x)))@(exprAt(12))
-extend Ext.exprs with Hash.single(Lex.TSYM("^"), parseQPure)
+hide val parseQPure = Quasi.lift(\(x) :e(Quasi.pure(.x)))@(exprAt(12))
+extend Exprs with Hash.single(TSYM("^"), parseQPure)
 
-fun parseQMap(funcExpr) =
+hide fun parseQMap(funcExpr) =
   let fun make(f,as) = :e(Quasi.map(.f, ..as))
   in Quasi.lift(make)@(@funcExpr, parens(listishQ(expr)))
 
-extend Ext.infixExprs with
-  Hash.single(Lex.TSYM("^"),
+extend InfixExprs with
+  Hash.single(TSYM("^"),
     Hash.put(symbol("precedence"), 11,
       Hash.single(symbol("parse"), parseQMap)))
+
+
+# List expressions.
+# TODO: list comprehensions?
+hide val parseList =
+  let
+    fun single(x) = :e(List.list(.x))
+    val elem = bind x = expr in
+               option(single^(x), second@(keysym(".."), @x))
+    fun make(as) = :e(List.append(..as))
+  in Quasi.lift(make)@(listishQ(elem))
+
+extend Exprs with Hash.single(TLBRACK, first@(parseList, rbrack))
+
+
+# Pattern-matching on lists.
