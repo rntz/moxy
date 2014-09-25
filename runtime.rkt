@@ -141,10 +141,17 @@
       [Vars @vars]
       [QuoteForms @quote-forms])
 
+    (#:nodule Env
+      [empty env-empty]
+      [join env-join]
+      [joins env-join*]
+      [single env-single]
+      [get env-get])
+
     (#:nodule Quasi
       [pure q-pure] [lift q-lift] [map q-fmap] [ap q-ap]
       [quasi q-quasi] [unquo q-unquo] [quo q-quo]
-      ;; [seq q-seq] [list q-seq*]
+      [seq q-seq] [list q-seq*]
       [run q-run])
 
     (#:nodule Parse
@@ -187,6 +194,9 @@
 
       [pat p-pat] [patAt p-pat-at] [atomicPat p-atomic-pat]
       [prefixPat p-prefix-pat] [infixPat p-infix-pat]
+
+      ;; from parse-builtins.rkt
+      [unquoExpr p-unquo-expr]
 
       ;; ah, whatever
       listish
