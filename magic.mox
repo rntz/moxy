@@ -1,7 +1,7 @@
 # why do we have to wrap this in Quasi.pure?
 # is that the desired effect?
 
-val parseMagic = Parse.pure(Quasi.pure(:e(say("why, it's magic!"); 17)))
+val parseMagic = Parse.pure(Quasi.pure(`e(say("why, it's magic!"); 17)))
 
 extend Ext.Exprs with
   Hash.single(Lex.TID("magic"), parseMagic)
@@ -10,7 +10,7 @@ extend Ext.Exprs with
 val racketFalse = racketEval(symbol("procedure?"))(0)
 
 fun parseMoreMagic(env, str, hardk, softk, ok) =
-  (say("what foolery is this?"); ok(racketFalse, Quasi.pure(:e(say("isn't it fun?"); 23))))
+  (say("what foolery is this?"); ok(racketFalse, Quasi.pure(`e(say("isn't it fun?"); 23))))
 
 extend Ext.Exprs with
   Hash.single(Lex.TID("foolery"), parseMoreMagic)

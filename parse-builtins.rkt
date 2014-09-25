@@ -54,14 +54,17 @@
     ))
 
 ;; should these really go here?
-(provide p-unquo-expr q-listish)
+(provide p-unquo-expr q-ify q-listish)
 
 ;; TODO: handle unquote-splicing in q-listish.
 ;; q-listish : Parse (Q a) -> Parse (Q [a])
 (define p-unquo-expr (<$> q-unquo (choice p-atomic-expr (parens p-expr))))
-(define (q-listish p)
-  (define elem (choice (*> (keysym "..") p-unquo-expr) (<$> q-seq* p)))
+
+(define ((q-ify listish) p)
+  (define elem (choice (*> (keysym "~..") p-unquo-expr) (<$> q-seq* p)))
   (<$> (compose (q-lift append*) q-seq) (listish elem)))
+
+(define q-listish (q-ify listish))
 
 ;; p-pats : Parse (Q [Pat])
 (define p-pats (q-listish p-pat))
@@ -267,7 +270,7 @@
     (TID "local")   @decl:local
     (TID "open")    @decl:open
     (TID "extension") @decl:extension
-    (TSYM ".")      @decl:unquote))
+    (TSYM "~")      @decl:unquote))
 
 
 ;; -- exprs --
@@ -375,9 +378,9 @@
     (TID "let")  @expr:let
     (TID "if")   @expr:if
     (TID "case") @expr:case
-    (TSYM ":")   @expr:quasiquote
-    (TSYM "::")  @expr:quote
-    (TSYM ".")   @expr:unquote
+    (TSYM "`")   @expr:quasiquote
+    (TSYM "`!")  @expr:quote
+    (TSYM "~")   @expr:unquote
     (TSYM "'")   @expr:symbol ;; TODO: remove
     ))
 
@@ -493,7 +496,7 @@
 (define @pat:unquote p-unquo-expr)
 
 (define builtin-@pats
-  (hash (TSYM ".") @pat:unquote))
+  (hash (TSYM "~") @pat:unquote))
 
 
 ;; -- infix patterns --

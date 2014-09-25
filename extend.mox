@@ -18,7 +18,7 @@ fun testParse(parser) =
 #     @x == Parse.pure(x)
 hide val parsePure =
   # unhygienic :(
-  let fun f(x) = :e(Parse.pure(.x))
+  let fun f(x) = `e(Parse.pure(~x))
   # NB. precedence 12 prohibits even function application
   in map(Quasi.lift(f), exprAt(12))
 
@@ -26,10 +26,11 @@ extend Exprs with
   Hash.single(TSYM("@"), parsePure)
 
 # Now a syntax for Parse.map:
-#     f@(x,y,z) = Parse.map(f,x,y,z)
+#     f@ ~> Parse.lift(f)
+#     f@(x,y,z) ~> Parse.lift(f)(x,y,z) = Parse.map(f,x,y,z)
 hide fun parseMap(funcExpr) =
-  let fun make(f,a) = :e(Parse.map(.f, ..a))
-  in map(Quasi.lift(make), @funcExpr, parens(listishQ(expr)))
+  let fun make(f) = `e(Parse.lift(~f))
+  in pure(Quasi.map(make, funcExpr))
 
 hide val extMap =
   Hash.put(symbol("precedence"), 11,
@@ -41,7 +42,7 @@ extend InfixExprs with
 # Now Parse.bind:
 #     (bind x = expr in xyzzy) = Parse.bind(expr, \(x) xyzzy)
 hide val parseBind =
-  let fun make(pat, exp, body) = :e(Parse.bind(.exp, \(.pat) .body))
+  let fun make(pat, exp, body) = `e(Parse.bind(~exp, \(~pat) ~body))
   # this Quasi.lift(foo)@(...) pattern keeps coming up a lot
   in Quasi.lift(make)@(pat, second@(equals, expr), second@(keyword("in"), expr))
 
@@ -49,12 +50,12 @@ extend Exprs with Hash.single(TID("bind"), parseBind)
 
 
 # Now we do the same for Quasi, only with ^ instead of @
-hide val parseQPure = Quasi.lift(\(x) :e(Quasi.pure(.x)))@(exprAt(12))
+hide val parseQPure = Quasi.lift(\(x) `e(Quasi.pure(~x)))@(exprAt(12))
 extend Exprs with Hash.single(TSYM("^"), parseQPure)
 
 hide fun parseQMap(funcExpr) =
-  let fun make(f,as) = :e(Quasi.map(.f, ..as))
-  in Quasi.lift(make)@(@funcExpr, parens(listishQ(expr)))
+  let fun make(f) = `e(Quasi.lift(~f))
+  in pure(Quasi.map(make, funcExpr))
 
 extend InfixExprs with
   Hash.single(TSYM("^"),
@@ -66,13 +67,18 @@ extend InfixExprs with
 # TODO: list comprehensions?
 hide val parseList =
   let
-    fun single(x) = :e(List.list(.x))
-    val elem = bind x = expr in
-               option(single^(x), second@(keysym(".."), @x))
-    fun make(as) = :e(List.append(..as))
+    fun single(x) = `e(List.list(~x))
+    val elem = choice(single^ @(expr), second@(keysym(".."), expr))
+    fun make(as) = `e(List.append(~..as))
   in Quasi.lift(make)@(listishQ(elem))
 
 extend Exprs with Hash.single(TLBRACK, first@(parseList, rbrack))
 
 
 # Pattern-matching on lists.
+# hide val listPat =
+#   let
+    
+#   in Quasi.lift(make)@(qIfy(\ (x) beginSepBy(x, comma))(pat),
+#                        optionMaybe(second@(comma, first@(pat, keysym("..")))))
+# extend Pats with Hash.single(TLBRACK, first@(listPat, rbrack))
