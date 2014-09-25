@@ -17,7 +17,7 @@
 (provide
   parse parse-eval-file
   local-env
-  keyword keysym comma dot semi equals bar
+  keyword keysym comma dot semi colon equals bar
   lparen rparen lbrace rbrace lbrack rbrack
   parens braces brackets
   p-str p-num p-lit
@@ -62,6 +62,7 @@
 (define comma (keysym ","))
 (define dot (keysym "."))
 (define semi (keysym ";"))
+(define colon (keysym ":"))
 (define equals (keysym "="))
 (define bar (keysym "|"))
 

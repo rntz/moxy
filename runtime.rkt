@@ -169,7 +169,7 @@
 
       ;; from parse.rkt
       [localEnv local-env]
-      keyword keysym comma dot semi equals bar
+      keyword keysym comma dot semi colon equals bar
       lparen rparen lbrace rbrace lbrack rbrack
       parens braces brackets
       [string p-str] [number p-num] [literal p-lit]
