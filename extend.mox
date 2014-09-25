@@ -74,7 +74,8 @@ val parseList =
 extend Exprs with Hash.single(TLBRACK, first@(parseList, rbrack))
 
 
-# Making hashes more easily
+# Hash utilities
+# TODO: make this extensible
 hide val parseHash =
   let fun lit(x) = ^AST.exprLit(x)
       val field = try(first@(lit@(varId), equals))
@@ -85,14 +86,58 @@ hide val parseHash =
 
 extend Exprs with Hash.single(TLBRACE, first@(parseHash, rbrace))
 
+# Dot syntax for accessing "fields" of hashes
+#    a.foo ~> Hash.get(symbol("foo"), a)
+
+hide fun parseHashGet(hashExpr) =
+  let fun make(hash, field) = `e(Hash.get(~(AST.exprLit(field)), ~hash))
+  in make^ @(@hashExpr, Quasi.pure@(varId))
+
+extend InfixExprs with { TSYM("."): { precedence = 10, parse = parseHashGet } }
+
+
+# An utterly hackish quote-form for s-expressions.
+hide val parseAtom = choice(literal, anyId)
+
+hide
+fun parseSexp(env,str,hardk,softk,ok) =
+  (choice(Quasi.pure@(parseAtom),
+          second@(keysym("~"), unquoExpr),
+          Quasi.seq@(parens(many(parseSexp)))))
+    (env,str,hardk,softk,ok)
+
+extend QuoteForms with { TID("s"): parseSexp }
+
 
 # Pattern-matching on lists.
-# val nilPat =
+# what a hack.
+val nilPat = {
+  sexp = \() [],
+  resolveExt = {},
+  idents = [],
+  compile = \(env, subj, onSuc, onFail)
+              `s((if (~(symbol("null?")) ~subj) ~onSuc ~onFail))
+}
 
-# hide val listPat =
-#   let
-    
-#   in make^ @(qIfy(\ (x) beginSepBy(x, comma))(pat),
-#                   optionMaybe(second@(comma, second@(keysym(".."), pat))))
+fun consPat(a, b) = {
+  sexp = \() `s((cons ~(a.sexp()) ~(b.sexp()))),
+  resolveExt = Env.join(a.resolveExt, b.resolveExt),
+  idents = List.append(a.idents, b.idents),
+  compile = \(env, subj, onSuc, onFail)
+              `s((if (~(symbol("pair?")) ~subj)
+                    ~(a.compile(env, `s((car ~subj)),
+                        b.compile(env, `s((cdr ~subj)), onSuc, onFail),
+                        onFail))
+                    ~onFail))
+}
 
-# extend Pats with Hash.single(TLBRACK, first@(listPat, rbrack))
+hide val listPat =
+  let fun make(elems, tail) =
+        List.foldr(consPat, fromMaybe(tail, nilPat), elems)
+  in make^ @(listishQ(pat),
+             # FIXME: this allows for two trailing commas!
+             bind _ = optional(comma) in
+             bind done = option(True, second@(keysym(".."), @False))
+             in if done then @ ^None else Just^ @(pat))
+
+extend Pats with {TLBRACK: first@(listPat, rbrack)}
