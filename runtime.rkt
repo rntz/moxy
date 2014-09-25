@@ -149,14 +149,14 @@
       try ask local
       psum choice peof
       option optional [optionMaybe option-maybe]
-      ;;; these all return racket lists
-      ;; many many1
-      ;; [skipMany skip-many] [skipMany1 skip-many1]
-      ;; [sepBy sep-by] [sepBy1 sep-by1]
-      ;; [endBy end-by] [endBy1 end-by1]
-      ;; [sepEndBy sep-end-by] [sepEndBy1 sep-end-by1]
-      ;; [beginSepBy begin-sep-by] [beginSepBy1 begin-sep-by1]
-      ;; [beginSepEndBy begin-sep-end-by] [beginSepEndBy1 begin-sep-end-by1]
+      ;; these all return racket lists
+      many many1
+      [skipMany skip-many] [skipMany1 skip-many1]
+      [sepBy sep-by] [sepBy1 sep-by1]
+      [endBy end-by] [endBy1 end-by1]
+      [sepEndBy sep-end-by] [sepEndBy1 sep-end-by1]
+      [beginSepBy begin-sep-by] [beginSepBy1 begin-sep-by1]
+      [beginSepEndBy begin-sep-end-by] [beginSepEndBy1 begin-sep-end-by1]
       between
       [mapByMaybe pmap-maybe]
       ;; [filterBy pfilter] ;; need to adapt for booleans
@@ -183,7 +183,9 @@
       [prefixPat p-prefix-pat] [infixPat p-infix-pat]
 
       ;; ah, whatever
-      listish [listishQ q-listish]
+      listish
+      [listishQ q-listish]
+      [qIfy q-ify]                      ;uch
 
       ;; TODO: decl etc. return lists!
       ;; [decl p-decl] [decls p-decls]
