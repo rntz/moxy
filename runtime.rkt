@@ -122,7 +122,13 @@
       [delete hash-delete]
       [alter hash-alter]
       [map hash-map]
-      [union hash-union])
+      [union hash-union]
+      ;; XXX lists
+      [fromList hash-from-list]
+      [fromKeysValues hash-from-keys-values])
+
+    (#:nodule AST
+      [exprLit expr:lit])
 
     (#:nodule Ext
       [Exprs @exprs]
