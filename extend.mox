@@ -19,8 +19,7 @@ fun testParse(parser) =
 hide val parsePure =
   # unhygienic :(
   let fun f(x) = `e(Parse.pure(~x))
-  # NB. precedence 12 prohibits even function application
-  in map(Quasi.lift(f), exprAt(12))
+  in map(Quasi.lift(f), expr)
 
 extend Exprs with
   Hash.single(TSYM("@"), parsePure)
@@ -50,7 +49,7 @@ extend Exprs with Hash.single(TID("bind"), parseBind)
 
 
 # Now we do the same for Quasi, only with ^ instead of @
-hide val parseQPure = Quasi.lift(\(x) `e(Quasi.pure(~x)))@(exprAt(12))
+hide val parseQPure = Quasi.lift(\(x) `e(Quasi.pure(~x)))@(expr)
 extend Exprs with Hash.single(TSYM("^"), parseQPure)
 
 hide fun parseQMap(funcExpr) =
@@ -65,7 +64,7 @@ extend InfixExprs with
 
 # List expressions.
 # TODO: list comprehensions?
-hide val parseList =
+val parseList =
   let
     fun single(x) = `e(List.list(~x))
     val elem = choice(single^ @(expr), second@(keysym(".."), expr))
@@ -75,10 +74,25 @@ hide val parseList =
 extend Exprs with Hash.single(TLBRACK, first@(parseList, rbrack))
 
 
+# Making hashes more easily
+hide val parseHash =
+  let fun lit(x) = ^AST.exprLit(x)
+      val field = try(first@(lit@(varId), equals))
+      fun muddle(a,b) = `e([[~a, ~b]])
+      val elem = muddle^ @(choice(field, first@(expr, colon)), expr)
+      fun make(as) = `e(Hash.fromList([~..as]))
+  in make^ @(listishQ(elem))
+
+extend Exprs with Hash.single(TLBRACE, first@(parseHash, rbrace))
+
+
 # Pattern-matching on lists.
+# val nilPat =
+
 # hide val listPat =
 #   let
     
-#   in Quasi.lift(make)@(qIfy(\ (x) beginSepBy(x, comma))(pat),
-#                        optionMaybe(second@(comma, first@(pat, keysym("..")))))
+#   in make^ @(qIfy(\ (x) beginSepBy(x, comma))(pat),
+#                   optionMaybe(second@(comma, second@(keysym(".."), pat))))
+
 # extend Pats with Hash.single(TLBRACK, first@(listPat, rbrack))
