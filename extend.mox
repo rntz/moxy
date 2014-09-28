@@ -108,13 +108,13 @@ fun infix(parseAt) = \(prec,assoc,make)
   , parse = \ (leftExpr)
       make@(@leftExpr, parseAt(prec + (case assoc | R -> 0 | L -> 1))) }
 
-fun infixExpr(prec,assoc,make) = infix(exprAt)(prec,assoc,make^)
+fun exprInfix(prec,assoc,make) = infix(exprAt)(prec,assoc,make^)
 
 
 # x >> y = bind _ = x in y
 extend InfixExprs =
-  { TSYM(">>"): infixExpr(1, R, \(l,r) `e(bind _ = ~l in ~r))
-  , TSYM("<*"): infixExpr(4, L, \(l,r) `e((\(x,_) x)@(~l, ~r))) }
+  { TSYM(">>"): exprInfix(1, R, \(l,r) `e(bind _ = ~l in ~r))
+  , TSYM("<*"): exprInfix(4, L, \(l,r) `e((\(x,_) x)@(~l, ~r))) }
 
 
 # An utterly hackish quote-form for s-expressions.
@@ -165,7 +165,7 @@ extend Pats = {TLBRACK: first@(listPat, rbrack)}
 
 # Dictionary utilies
 extend InfixExprs =
-  { TID("with"): infixExpr(10, L, \(l,r) `e(Hash.union(~l, ~r))) }
+  { TID("with"): exprInfix(10, L, \(l,r) `e(Hash.union(~l, ~r))) }
 
 
 # Parser-specific eta-expansion
