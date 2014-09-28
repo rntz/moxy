@@ -22,7 +22,7 @@
   ;; (if (hash? x) "<object>" (show x))
   ;; crude hack
   (if (and (hash? x) (hash-has? 'form x) (hash-has? 'sexp x))
-    (format "<ast ~a>" ((hash-get 'sexp x)))
+    (format "<ast ~a>" (show ((hash-get 'sexp x))))
     (show x)))
 
 (define-tag FoundSemi rev-toks after)
