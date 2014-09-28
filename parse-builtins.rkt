@@ -543,7 +543,7 @@
     (record
       [resolveExt env-empty]
       [parseExt (env-single point value)]))
-  (<$> extend p-expr (*> (keyword "with") p-expr)))
+  (<$> extend p-expr (*> (keysym "=") p-expr)))
 
 (define (@top:hide resolve-env eng)
   (pdo priv-result <- (parse-eval-one resolve-env eng)
