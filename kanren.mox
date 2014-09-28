@@ -5,6 +5,8 @@ private
   open Lex
 in
 
+# TODO: maybe split this up into multiple modules?
+
 fun askExt(ext) = Env.get@(@ext, ask)
 
 fun nextIn(ext) =
@@ -17,7 +19,7 @@ tag Var(name)
 
 # type Term = Var | (Term . Term) | anything else
 # type Stream = () | (State . Stream) | () -> Stream
-# type State = {next = Var, db = DB, sub = Subst}
+# type State = {db = DB, sub = Subst}
 # type Subst = {Var: Term}
 # type DB = {Symbol: [Term] -> Goal}
 # type Goal = State -> Stream
@@ -27,10 +29,13 @@ tag Var(name)
 # microKanren implementation
 fun ext(x,v,s) = Hash.put(x,v,s)
 
-fun walk(Var(i), s) = Hash.get(i, s, \() Var(i))
+fun walk(Var(i), s) = (case Hash.lookup(i, s)
+                         | None -> Var(i)
+                         | Just(t) -> walk(t,s))
   | walk(x, _) = x
 
 # unify : Term, Term, Subst -> Maybe Subst
+# TODO: more powerful circularity check?
 fun unify(u,v,s) =
   let fun unif(Var(x), Var(y)) = if x == y then s else ext(x, Var(y), s)
         | unif(Var(x), t) = ext(x, t, s)
@@ -44,9 +49,9 @@ fun unify(u,v,s) =
 
 fun eq(u,v) = \(st) case unify(u, v, st.sub)
                       | None -> []
-                      | s -> st with {sub = s}
+                      | s -> [st with {sub = s}]
 
-fun freshly(f) = \(st) f(Var(st.next))(st with {next = st.next+1})
+fun freshly(f) = f(Var(gensym()))
 
 fun mplus([], y) = y
   | mplus([x, ..xs], y) = [x, ..mplus(xs,y)]
@@ -55,6 +60,9 @@ fun mplus([], y) = y
 fun mbind([], g) = []
   | mbind([x, ..xs], g) = mplus(g(x), mbind(xs, g))
   | mbind(f, g) = \() mbind(f(), g)
+
+val no = \(st) []   # failing goal, identity of disj
+val ok = \(st) [st] # succeeding goal, identity of conj
 
 fun disj(g1, g2) = \(st) mplus(g1(st), g2(st))
 fun conj(g1, g2) = \(st) mbind(g1(st), g2)
@@ -67,39 +75,34 @@ fun conj(g1, g2) = \(st) mbind(g1(st), g2)
 #     | Var(x) ->
 
 
-# Compiling prologish syntax to microKanren
+# Compiling terms to expressions which produce those terms, with fresh
+# variables.
 
-# uniqTerm : Term, Renaming -> (Term, Renaming)
-# uniqTerms : [Term], Renaming -> ([Term], Renaming)
-
+# uniqTerm : Term, Renaming -> (Expr Term, Renaming)
 fun uniqTerm(Var(n), d) =
     (case Hash.lookup(n, d)
-       | Just(t) -> [t, d]
-       | None -> let val t = Var(gensym(n))
-                 in [t, Hash.put(n, t, d)])
+       | Just(id) -> [AST.exprVar(AST.varLocal(id)), d]
+       | None -> let val id = AST.mkId(n)
+                 in [AST.exprVar(AST.varLocal(id)), Hash.put(n, id, d)])
   | uniqTerm([a, ..as], d) =
     let val [a, d] = uniqTerm(a, d)
         val [as, d] = uniqTerm(as, d)
-    in [[a, ..as], d]
-  | uniqTerm(x, d) = [x, d]
+    in [`e([~a, .. ~as]), d]
+  | uniqTerm(x, d) = [`e(`!e(~x)), d]
 
+# uniqTerms : [Term], Renaming -> (Expr [Term], Renaming)
 fun uniqTerms(l,d) =
   let fun f(x, [xs, d]) = let val [x,d] = uniqTerm(x, d)
-                          in [[x, ..xs], d]
-  in List.foldr(f, [[],d], l)
+                          in [`e([~x, .. ~xs]), d]
+  in List.foldr(f, [`e([]),d], l)
 
 
-# Design of Kanren stx
-
-# upper-case vars are evars, like in prolog
-
-# foo([X|Y]) :- bar(X), X = 2, foo(Y).
-# foo([]).
-
+# Parsing Kanren.
 extension Terms({}, Hash.union)
 extension Goals({}, Hash.union)
 extension InfixGoals({}, Hash.union)
 
+# upper-case vars, like in prolog
 val pVar = Quasi.pure@(Var@(capsId))
 
 # should we really parse single atoms "y" as calls "y()"?
@@ -111,28 +114,25 @@ and val pTerm = choice(
   , Quasi.pure@(literal)
   , keysym("~") >> unquoExpr )
 
-extend Terms = { TLBRACK: pTerms <* rbrack }
 extend Ext.QuoteForms = { TID("term"): pTerm }
 
 # NB. the vars we get from parsing are NOT the vars we use in unify, etc.
 # need to uniqify them first.
 
-# TODO: symbol should be Q'd and unquotable
-# pHead : Parse (Symbol, Q [Term])
-val pHead = List.list@(varId, option(^ @[], parens(pTerms)))
-
 # recall type Goal = State -> Stream
-# prefixGoal : Parse (Q (Renaming -> (Goal, Renaming)))
+# prefixGoal : Parse (Q (Renaming -> (Expr Goal, Renaming)))
 val prefixGoal =
-    # app : Sym, [Term] -> (Renaming -> (Goal, Renaming))
+    # app : Sym, [Term] -> (Renaming -> (Expr Goal, Renaming))
     let fun app(id, terms) = \(d)
-          let val [ts, d] = uniqTerms(terms, d)
-              fun g(st) = Hash.get(id, st.db)(ts)(st)
-          in [g, d]
+          let val [termsE, d] = uniqTerms(terms, d)
+              fun g(terms) = \(st) Hash.get(id, st.db)(terms)(st)
+          in [`e(`!e(~g)(~termsE)), d]
     in choice( app^ @(Quasi.pure@(try(anyId <* lparen)), pTerms <* rparen)
              , app^ @(@ ^ 'eq, List.list^ @(pTerm, equals >> pTerm))
              )
 
+# infixGoal : Int, Q (Renaming -> (Expr Goal, Renaming))
+#            -> Parse (Q (Renaming -> (Expr Goal, Renaming)))
 fun infixGoal(prec, leftExpr) =
   option(leftExpr,
     bind infixes = askExt(InfixGoals)
@@ -141,11 +141,9 @@ fun infixGoal(prec, leftExpr) =
     in bind r = ext.parse(leftExpr)
     in infixGoal(prec, r))
 
-# TODO: Now, to add some actual operators to InfixGoals.
-# TODO: make this extensible
-# goals G ::= G, G | G; G | T = T | id(T,*)
 rec fun goalAt(prec) = bind g = prefixGoal in infixGoal(prec, g)
 
+# pGoal : Parse (Q (Renaming -> (Expr Goal, Renaming)))
 val pGoal = goalAt(0)
 
 fun goalInfix(prec,assoc,make) =
@@ -155,20 +153,75 @@ fun goalInfix(prec,assoc,make) =
   in infix(goalAt)(prec,assoc,liftMake^)
 
 extend InfixGoals =
-  { TSYM(","): goalInfix(1, R, disj)
-  , TSYM(";"): goalInfix(0, R, conj) }
+  { TSYM(","): goalInfix(1, R, \(x,y) `e(conj(~x, ~y)))
+  , TSYM(";"): goalInfix(0, R, \(x,y) `e(disj(~x, ~y))) }
 
 extend Ext.QuoteForms = { TID("goal"): pGoal }
 
-# # Parses a statement to a dictionary mapping names to lists of Rules
-# tag Rule(params, body)
+val dbEmpty = {}
+fun dbSingle(n,f) = {n: f}
+fun dbJoin(x,y) = Hash.union(x, y, \ (_,l,r) \ (args) disj(x(args), y(args)))
 
-# # fun stmtEmpty = {}
-# # fun stmtSingle(n,ps,b) = {n: [[ps,b]]}
-# # fun stmtJoin(x,y) = Hash.union(x, y, \(_,l,r) List.append(l,r))
+# Parses a statement to a DB
 
-# # val pStmt = bind [name, params] = pHead
-# #             in bind body = option(^None, keysym(":-") >> Just^ @(pGoal))
-# #             in dot >> @stmtSingle^(name, params, body)
+# TODO: symbol should be Q'd and unquotable
+# do we really want the argument list to be optional?
+# pHead : Parse (Symbol, Q [Term])
+val pHead = List.list@(varId, option(^[], parens(pTerms)))
 
-# # val pStmts = List.foldl@(@stmtJoin, @stmtEmpty, many(pStmt))
+# pStmt : Parse (Q DB)
+val pStmt =
+  let fun rule(params, body) =
+        let val [params, d] = uniqTerms(params, {})
+            val [body, d] = body(d)
+            val argsym = AST.mkTemp("args")
+            val argexp = AST.exprVar(AST.varLocal(argsym))
+            fun declify(id) = `d(val ~(AST.patVar(id)) = Var(gensym(`!e(~id))))
+            val d = AST.declBegin(List.map(declify, Hash.values(d)))
+        in AST.exprLambda([AST.patVar(argsym)],
+             `e(let ~d in conj(eq(~params, ~argexp), ~body)))
+      # in `e(\(argsym) conj(eq(~params, args), ~body))
+      #in \(args) conj(eq(params, args), body)
+      fun single(n,r) = `e({`!e(~n): ~r})
+  in bind [name, params] = pHead
+  in bind body = option(^ \(d) [`e(ok), d], keysym(":-") >> pGoal)
+  in dot >> @single^(^name, rule^(params, body))
+
+val pStmts = let fun f(x,y) = `e(~x with ~y)
+             in List.foldl@(@(f^), @ ^ `e({}), many(pStmt))
+
+extend Ext.QuoteForms = { TID("stmt"): pStmt
+                        , TID("kanren"): pStmts }
+
+# Embedding Kanren in Moxy
+extend Ext.Exprs =
+  { TID("kanren"): braces(pStmts) }
+
+
+# List terms
+# TODO: _real_ list terms, not just lists of things.
+# in particular, [X,Y|Z] patterns.
+extend Terms = { TLBRACK: pTerms <* rbrack }
+
+
+# TODO: more things.
+fun query(db, goal) = goal({db = db, sub = {}})
+
+# A test
+val db = kanren {
+  append(cons(X,Xs), Ys, XYs) :- append(Xs, Ys, XYs).
+  append(nil(), X, X).
+}
+
+fun app(a,b,c) =
+  disj(conj(eq(a,[]), eq(b,c)),
+       let val [x,xs,cs] = List.map(\(x) Var(gensym(x)), ["x", "xs", "cs"])
+       in conj(eq(a, [x, ..xs]),
+               conj(eq(c, [x, ..cs]),
+                    \(st) app(xs, b, cs)(st))))
+
+fun reify(s, Var(i)) = (case Hash.lookup(i, s)
+                          | None -> Var(i)
+                          | Just(t) -> reify(s, t))
+  | reify(s, [x, ..xs]) = [reify(s,x), ..reify(s, xs)]
+  | reify(s, x) = x
