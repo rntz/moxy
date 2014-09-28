@@ -1,0 +1,166 @@
+private
+  import Extend
+  open Extend
+  open Parse
+  open Lex
+in
+
+fun askExt(ext) = Env.get@(@ext, ask)
+
+fun nextIn(ext) =
+  bind extVal = askExt(ext)
+  in tryOneMaybe(\(t) Hash.lookup(t, extVal))
+
+# term constructors
+# terms are either Vars, lists, or uninterpreted atoms
+tag Var(name)
+
+# type Term = Var | (Term . Term) | anything else
+# type Stream = () | (State . Stream) | () -> Stream
+# type State = {next = Var, db = DB, sub = Subst}
+# type Subst = {Var: Term}
+# type DB = {Symbol: [Term] -> Goal}
+# type Goal = State -> Stream
+# type Renaming = {Symbol: Symbol}
+
+
+# microKanren implementation
+fun ext(x,v,s) = Hash.put(x,v,s)
+
+fun walk(Var(i), s) = Hash.get(i, s, \() Var(i))
+  | walk(x, _) = x
+
+# unify : Term, Term, Subst -> Maybe Subst
+fun unify(u,v,s) =
+  let fun unif(Var(x), Var(y)) = if x == y then s else ext(x, Var(y), s)
+        | unif(Var(x), t) = ext(x, t, s)
+        | unif(t, Var(x)) = ext(x, t, s)
+        | unif([a, ..as], [b, ..bs]) =
+            (case unify(a,b,s)
+               | None -> None
+               | s -> unify(as,bs,s))
+        | unif(x,y) = if x == y then s else None
+  in unif(walk(u,s), walk(v,s))
+
+fun eq(u,v) = \(st) case unify(u, v, st.sub)
+                      | None -> []
+                      | s -> st with {sub = s}
+
+fun freshly(f) = \(st) f(Var(st.next))(st with {next = st.next+1})
+
+fun mplus([], y) = y
+  | mplus([x, ..xs], y) = [x, ..mplus(xs,y)]
+  | mplus(f, y) = \() mplus(y, f())
+
+fun mbind([], g) = []
+  | mbind([x, ..xs], g) = mplus(g(x), mbind(xs, g))
+  | mbind(f, g) = \() mbind(f(), g)
+
+fun disj(g1, g2) = \(st) mplus(g1(st), g2(st))
+fun conj(g1, g2) = \(st) mbind(g1(st), g2)
+
+# Some utilities
+# TODO: Reifies a term in a substitution
+# fun reify(x, s) =
+#   case x
+#     | Lit(x) -> AST.exprLit(x)
+#     | Var(x) ->
+
+
+# Compiling prologish syntax to microKanren
+
+# uniqTerm : Term, Renaming -> (Term, Renaming)
+# uniqTerms : [Term], Renaming -> ([Term], Renaming)
+
+fun uniqTerm(Var(n), d) =
+    (case Hash.lookup(n, d)
+       | Just(t) -> [t, d]
+       | None -> let val t = Var(gensym(n))
+                 in [t, Hash.put(n, t, d)])
+  | uniqTerm([a, ..as], d) =
+    let val [a, d] = uniqTerm(a, d)
+        val [as, d] = uniqTerm(as, d)
+    in [[a, ..as], d]
+  | uniqTerm(x, d) = [x, d]
+
+fun uniqTerms(l,d) =
+  let fun f(x, [xs, d]) = let val [x,d] = uniqTerm(x, d)
+                          in [[x, ..xs], d]
+  in List.foldr(f, [[],d], l)
+
+
+# Design of Kanren stx
+
+# upper-case vars are evars, like in prolog
+
+# foo([X|Y]) :- bar(X), X = 2, foo(Y).
+# foo([]).
+
+extension Terms({}, Hash.union)
+extension Goals({}, Hash.union)
+extension InfixGoals({}, Hash.union)
+
+val pVar = Quasi.pure@(Var@(capsId))
+
+# should we really parse single atoms "y" as calls "y()"?
+rec val pTerms = eta listishQ(pTerm)
+and val pCall = List.cons^ @(Quasi.pure@(varId), option(^[], parens(pTerms)))
+and val pTerm = choice(
+  , join(nextIn(Terms))
+  , pCall, pVar
+  , Quasi.pure@(literal)
+  , keysym("~") >> unquoExpr )
+
+extend Terms = { TLBRACK: pTerms <* rbrack }
+extend Ext.QuoteForms = { TID("term"): pTerm }
+
+# NB. the vars we get from parsing are NOT the vars we use in unify, etc.
+# need to uniqify them first.
+
+# TODO: symbol should be Q'd and unquotable
+# pHead : Parse (Symbol, Q [Term])
+val pHead = List.list@(varId, option(^ @[], parens(pTerms)))
+
+# prefixGoal : Parse (Q (Renaming -> (Goal, Renaming)))
+val prefixGoal =
+    # app : Sym, [Term] -> (Renaming -> (Goal, Renaming))
+    let fun app(id, terms) = \(d)
+          let val [ts, d] = uniqTerms(terms, d)
+              fun g(st) = Hash.get(id, st.db)(ts)
+          in [g, d]
+    in choice( app^ @(Quasi.pure@(try(anyId <* lparen)), pTerms <* rparen)
+             , app^ @(@ ^ 'eq, List.list^ @(pTerm, equals >> pTerm))
+             )
+
+fun infixGoal(prec, leftExpr) =
+  option(leftExpr,
+    bind infixes = askExt(InfixGoals)
+    in bind ext = tryOneMaybe(\(t) maybeFilter(Hash.lookup(t, infixes),
+                                               \(x) prec <= x.precedence))
+    in bind r = ext.parse(leftExpr)
+    in infixGoal(prec, r))
+
+# TODO: Now, to add some actual operators to InfixGoals.
+extend InfixGoals =
+  { TSYM(","): 
+  , TSYM(";"): }
+
+# TODO: make this extensible
+# goals G ::= G, G | G; G | T = T | id(T,*)
+rec fun goalAt(prec) = bind g = prefixGoal in infixGoal(prec, g)
+and val pGoal = goalAt(0)
+
+extend Ext.QuoteForms = { TID("goal"): pGoal }
+
+# # Parses a statement to a dictionary mapping names to lists of Rules
+# tag Rule(params, body)
+
+# # fun stmtEmpty = {}
+# # fun stmtSingle(n,ps,b) = {n: [[ps,b]]}
+# # fun stmtJoin(x,y) = Hash.union(x, y, \(_,l,r) List.append(l,r))
+
+# # val pStmt = bind [name, params] = pHead
+# #             in bind body = option(^None, keysym(":-") >> Just^ @(pGoal))
+# #             in dot >> @stmtSingle^(name, params, body)
+
+# # val pStmts = List.foldl@(@stmtJoin, @stmtEmpty, many(pStmt))
