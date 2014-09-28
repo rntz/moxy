@@ -92,6 +92,7 @@
     [#:tag tag:ExtPoint ExtPoint]
 
     [symbol string->symbol]
+    gensym
     [string (lambda (x) (format "~a" x))]
 
     [racketEval eval]
