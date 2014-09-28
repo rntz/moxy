@@ -121,12 +121,13 @@ extend Ext.QuoteForms = { TID("term"): pTerm }
 # pHead : Parse (Symbol, Q [Term])
 val pHead = List.list@(varId, option(^ @[], parens(pTerms)))
 
+# recall type Goal = State -> Stream
 # prefixGoal : Parse (Q (Renaming -> (Goal, Renaming)))
 val prefixGoal =
     # app : Sym, [Term] -> (Renaming -> (Goal, Renaming))
     let fun app(id, terms) = \(d)
           let val [ts, d] = uniqTerms(terms, d)
-              fun g(st) = Hash.get(id, st.db)(ts)
+              fun g(st) = Hash.get(id, st.db)(ts)(st)
           in [g, d]
     in choice( app^ @(Quasi.pure@(try(anyId <* lparen)), pTerms <* rparen)
              , app^ @(@ ^ 'eq, List.list^ @(pTerm, equals >> pTerm))
@@ -141,14 +142,21 @@ fun infixGoal(prec, leftExpr) =
     in infixGoal(prec, r))
 
 # TODO: Now, to add some actual operators to InfixGoals.
-extend InfixGoals =
-  { TSYM(","): 
-  , TSYM(";"): }
-
 # TODO: make this extensible
 # goals G ::= G, G | G; G | T = T | id(T,*)
 rec fun goalAt(prec) = bind g = prefixGoal in infixGoal(prec, g)
-and val pGoal = goalAt(0)
+
+val pGoal = goalAt(0)
+
+fun goalInfix(prec,assoc,make) =
+  let fun liftMake(a,b) = \(d) let val [a,d] = a(d)
+                                   val [b,d] = b(d)
+                               in [make(a,b),d]
+  in infix(goalAt)(prec,assoc,liftMake^)
+
+extend InfixGoals =
+  { TSYM(","): goalInfix(1, R, disj)
+  , TSYM(";"): goalInfix(0, R, conj) }
 
 extend Ext.QuoteForms = { TID("goal"): pGoal }
 
