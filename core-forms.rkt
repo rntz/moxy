@@ -38,7 +38,12 @@
   [(resolve env or-else) (or-else)])
 
 (define-var qualified (nodule var)
-  [(sexp) (cons (@nodule-name nodule) (var-sexp var))]
+  [(sexp)
+    ;; TODO: this is an ugly hack.
+    (let ((x (var-sexp var)))
+      (if (symbol? x)
+        (string->symbol (format "~a.~a" (@nodule-name nodule) x))
+        (cons (@nodule-name nodule) x)))]
   [(resolve env or-else)
     (var-resolve var (@nodule-resolveExt nodule) or-else)])
 
