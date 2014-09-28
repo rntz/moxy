@@ -143,7 +143,6 @@
 (define @decl:fun (<$> (partial list env-empty) p-fun))
 
 ;; (begin [Decl])
-;; currently exists only for convenience; not exposed in language
 ;; expr:let uses this
 (define-decl begin (decls)
   [(sexp) `(,@(map decl-sexp decls))]
@@ -274,7 +273,7 @@
 
 
 ;; -- exprs --
-(provide expr:lambda expr:let expr:if expr:case)
+(provide expr:case-lambda expr:lambda expr:let expr:if expr:case)
 
 (define @expr:parens (<* p-expr rparen))
 
