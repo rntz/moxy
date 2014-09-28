@@ -250,6 +250,7 @@
     ext))
 
 ;; p-decls : Parse (ParseEnv, Q [Decl])
+;; TODO: unquote-splicing in p-decls?
 (define p-decls
   (let recur ([es env-empty]
               [ds '()])
