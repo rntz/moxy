@@ -125,11 +125,20 @@
       [map hash-map]
       [union hash-union]
       ;; XXX lists
+      [keys hash-keys]
+      [values hash-values]
       [fromList hash-from-list]
       [fromKeysValues hash-from-keys-values])
 
     (#:nodule AST
-      [exprLit expr:lit])
+      [mkId mkid] [mkTemp mktemp]
+      [exprVar expr:var]
+      [exprLit expr:lit]
+      [exprLambda expr:lambda]
+      [patVar pat:var]
+      [declBegin decl:begin]
+      [varLocal var:local]
+      )
 
     (#:nodule Ext
       [Exprs @exprs]
