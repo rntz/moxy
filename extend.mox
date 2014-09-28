@@ -12,6 +12,10 @@ fun testParse(parser) =
   # env, stream, hardk, softk, ok
   parser(None, None, first, first, second)
 
+# precedence 12 prohibits all infix operators, even function application
+val headExpr = exprAt(12)
+val callExpr = exprAt(11) # prohibits all except function application
+
 
 # Let's make writing parsers a bit easier, shall we?
 # First, a syntax for Parse.pure:
@@ -19,10 +23,9 @@ fun testParse(parser) =
 hide val parsePure =
   # unhygienic :(
   let fun f(x) = `e(Parse.pure(~x))
-  in map(Quasi.lift(f), expr)
+  in map(Quasi.lift(f), callExpr)
 
-extend Exprs with
-  Hash.single(TSYM("@"), parsePure)
+extend Exprs = Hash.single(TSYM("@"), parsePure)
 
 # Now a syntax for Parse.map:
 #     f@ ~> Parse.lift(f)
@@ -35,8 +38,7 @@ hide val extMap =
   Hash.put(symbol("precedence"), 11,
     Hash.single(symbol("parse"), parseMap))
 
-extend InfixExprs with
-  Hash.single(TSYM("@"), extMap)
+extend InfixExprs = Hash.single(TSYM("@"), extMap)
 
 # Now Parse.bind:
 #     (bind x = expr in xyzzy) = Parse.bind(expr, \(x) xyzzy)
@@ -45,18 +47,18 @@ hide val parseBind =
   # this Quasi.lift(foo)@(...) pattern keeps coming up a lot
   in Quasi.lift(make)@(pat, second@(equals, expr), second@(keyword("in"), expr))
 
-extend Exprs with Hash.single(TID("bind"), parseBind)
+extend Exprs = Hash.single(TID("bind"), parseBind)
 
 
-# Now we do the same for Quasi, only with ^ instead of @
-hide val parseQPure = Quasi.lift(\(x) `e(Quasi.pure(~x)))@(expr)
-extend Exprs with Hash.single(TSYM("^"), parseQPure)
+# Now we do the same for Quasi, only = ^ instead of @
+hide val parseQPure = Quasi.lift(\(x) `e(Quasi.pure(~x)))@(callExpr)
+extend Exprs = Hash.single(TSYM("^"), parseQPure)
 
 hide fun parseQMap(funcExpr) =
   let fun make(f) = `e(Quasi.lift(~f))
   in pure(Quasi.map(make, funcExpr))
 
-extend InfixExprs with
+extend InfixExprs =
   Hash.single(TSYM("^"),
     Hash.put(symbol("precedence"), 11,
       Hash.single(symbol("parse"), parseQMap)))
@@ -64,18 +66,17 @@ extend InfixExprs with
 
 # List expressions.
 # TODO: list comprehensions?
-val parseList =
+hide val parseList =
   let
     fun single(x) = `e(List.list(~x))
     val elem = choice(single^ @(expr), second@(keysym(".."), expr))
     fun make(as) = `e(List.append(~..as))
   in Quasi.lift(make)@(listishQ(elem))
 
-extend Exprs with Hash.single(TLBRACK, first@(parseList, rbrack))
+extend Exprs = Hash.single(TLBRACK, first@(parseList, rbrack))
 
 
-# Hash utilities
-# TODO: make this extensible
+# Creating hashes
 hide val parseHash =
   let fun lit(x) = ^AST.exprLit(x)
       val field = try(first@(lit@(varId), equals))
@@ -84,7 +85,9 @@ hide val parseHash =
       fun make(as) = `e(Hash.fromList([~..as]))
   in make^ @(listishQ(elem))
 
-extend Exprs with Hash.single(TLBRACE, first@(parseHash, rbrace))
+extend Exprs = Hash.single(TLBRACE, first@(parseHash, rbrace))
+
+# val infixOp
 
 # Dot syntax for accessing "fields" of hashes
 #    a.foo ~> Hash.get(symbol("foo"), a)
@@ -93,7 +96,25 @@ hide fun parseHashGet(hashExpr) =
   let fun make(hash, field) = `e(Hash.get(~(AST.exprLit(field)), ~hash))
   in make^ @(@hashExpr, Quasi.pure@(varId))
 
-extend InfixExprs with { TSYM("."): { precedence = 10, parse = parseHashGet } }
+extend InfixExprs = { TSYM("."): { precedence = 10, parse = parseHashGet } }
+
+
+# Convenience for infix operators
+tag L
+tag R
+
+fun infix(parseAt) = \(prec,assoc,make)
+  { precedence = prec
+  , parse = \ (leftExpr)
+      make@(@leftExpr, parseAt(prec + (case assoc | R -> 0 | L -> 1))) }
+
+fun infixExpr(prec,assoc,make) = infix(exprAt)(prec,assoc,make^)
+
+
+# x >> y = bind _ = x in y
+extend InfixExprs =
+  { TSYM(">>"): infixExpr(1, R, \(l,r) `e(bind _ = ~l in ~r))
+  , TSYM("<*"): infixExpr(4, L, \(l,r) `e((\(x,_) x)@(~l, ~r))) }
 
 
 # An utterly hackish quote-form for s-expressions.
@@ -106,12 +127,12 @@ fun parseSexp(env,str,hardk,softk,ok) =
           Quasi.seq@(parens(many(parseSexp)))))
     (env,str,hardk,softk,ok)
 
-extend QuoteForms with { TID("s"): parseSexp }
+extend QuoteForms = { TID("s"): parseSexp }
 
 
 # Pattern-matching on lists.
 # what a hack.
-val nilPat = {
+hide val nilPat = {
   sexp = \() [],
   resolveExt = {},
   idents = [],
@@ -119,7 +140,7 @@ val nilPat = {
               `s((if (~(symbol("null?")) ~subj) ~onSuc ~onFail))
 }
 
-fun consPat(a, b) = {
+hide fun consPat(a, b) = {
   sexp = \() `s((cons ~(a.sexp()) ~(b.sexp()))),
   resolveExt = Env.join(a.resolveExt, b.resolveExt),
   idents = List.append(a.idents, b.idents),
@@ -135,9 +156,22 @@ hide val listPat =
   let fun make(elems, tail) =
         List.foldr(consPat, fromMaybe(tail, nilPat), elems)
   in make^ @(listishQ(pat),
-             # FIXME: this allows for two trailing commas!
-             bind _ = optional(comma) in
-             bind done = option(True, second@(keysym(".."), @False))
-             in if done then @ ^None else Just^ @(pat))
+             # FIXME: allows duplicate comma
+             option(^None, second@(optional(comma),
+               option(^None, second@(keysym(".."), Just^ @(pat))))))
 
-extend Pats with {TLBRACK: first@(listPat, rbrack)}
+extend Pats = {TLBRACK: first@(listPat, rbrack)}
+
+
+# Dictionary utilies
+extend InfixExprs =
+  { TID("with"): infixExpr(10, L, \(l,r) `e(Hash.union(~l, ~r))) }
+
+
+# Parser-specific eta-expansion
+# TODO: make non-parser-specific
+hide val parseEta =
+  let fun make(x) = `e(\(env,str,hardk,softk,ok) ~x(env,str,hardk,softk,ok))
+  in make^ @(expr)
+
+extend Exprs = { TID("eta"): parseEta }
