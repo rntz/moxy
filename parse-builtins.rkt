@@ -295,10 +295,12 @@
 
 ;; (lambda params:[Pat] body:Expr)
 ;; thin wrapper around case-lambda
-(define (expr:lambda params body)
-  (expr:case-lambda (length params)
-    (list (list params body))
-    (expr:racket `(error "lambda parameter pattern did not match"))))
+(define-expr lambda (params body)
+  [impl (expr:case-lambda (length params)
+          (list (list params body))
+          (expr:racket `(error "lambda parameter pattern did not match")))]
+  [(sexp) `(lambda ,(map pat-sexp params) ,(expr-sexp body))]
+  [(compile env) (expr-compile impl env)])
 
 ;; for now, lambdas don't get multiple branches, but you can pattern-match.
 (define @expr:lambda
