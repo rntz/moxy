@@ -116,7 +116,7 @@ hide val parseHash =
       val field = try(first@(lit@(varId), equals))
       fun pair(a,b) = `e([~a, ~b])
       val elem = pair^ @(choice(field, first@(expr, colon)), expr)
-      fun make(as) = `e(Hash.fromList([~..as]))
+      fun make(as) = `e(Hash.fromList(~(makeList(as))))
   in make^ @(listishQ(elem))
 
 extend Exprs = Hash.single(TLBRACE, first@(parseHash, rbrace))
