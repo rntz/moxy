@@ -2,6 +2,7 @@ private
   open Lex
   open Parse
   open Ext
+  open List
 in
 
 # Some utility functions
@@ -17,13 +18,17 @@ val headExpr = exprAt(12)
 val callExpr = exprAt(11) # prohibits all except function application
 
 
+# Making printed ASTs prettier
+fun withSexp(sexpf, exp) = Hash.union(exp, Hash.single(symbol("sexp"), sexpf))
+
+
 # Let's make writing parsers a bit easier, shall we?
 # First, a syntax for Parse.pure:
 #     @x == Parse.pure(x)
 hide val parsePure =
   # unhygienic :(
   let fun f(x) = `e(Parse.pure(~x))
-  in map(Quasi.lift(f), callExpr)
+  in Parse.map(Quasi.lift(f), callExpr)
 
 extend Exprs = Hash.single(TSYM("@"), parsePure)
 
@@ -66,22 +71,51 @@ extend InfixExprs =
 
 # List expressions.
 # TODO: list comprehensions?
-hide val parseList =
-  let
-    fun single(x) = `e(List.list(~x))
-    val elem = choice(single^ @(expr), second@(keysym(".."), expr))
-    fun make(as) = `e(List.append(~..as))
-  in Quasi.lift(make)@(listishQ(elem))
+hide tag Single(x)
+hide tag Splice(x)
+
+# splicedList : [Single Expr | Splice Expr] -> Expr
+hide fun splicedList(elems) =
+  let fun toPart(Single(e)) = `e(List.list(~e))
+        | toPart(Splice(e)) = e
+      fun showElem(Single(e)) = sexp(e)
+        | showElem(Splice(e)) = list(symbol(".."), sexp(e))
+      fun show() = cons(symbol("list"), map(showElem, elems))
+  in withSexp(show, `e(List.append(~..(map(toPart, elems)))))
+
+hide fun makeList(es) = splicedList(map(Single, es))
+
+# parseListElem : Parse (Q (Single Expr | Splice [Expr]))
+hide val parseListElem =
+  choice(Single^ @(expr),
+         second@(keysym(".."), Splice^ @(expr)),
+         # I don't know why this works.
+         second@(keysym("~.."), Splice^ @(makeList^ @(unquoExpr))))
+
+hide val parseList = splicedList^ @(Quasi.seq@(listish(parseListElem)))
 
 extend Exprs = Hash.single(TLBRACK, first@(parseList, rbrack))
+
+
+# An utterly hackish quote-form for s-expressions.
+hide val parseAtom = choice(literal, anyId)
+
+hide
+fun parseSexp(env,str,hardk,softk,ok) =
+  (choice(Quasi.pure@(parseAtom),
+          second@(keysym("~"), unquoExpr),
+          Quasi.seq@(parens(many(parseSexp)))))
+    (env,str,hardk,softk,ok)
+
+extend QuoteForms = Hash.single(TID("s"), parseSexp)
 
 
 # Creating hashes
 hide val parseHash =
   let fun lit(x) = ^AST.exprLit(x)
       val field = try(first@(lit@(varId), equals))
-      fun muddle(a,b) = `e([[~a, ~b]])
-      val elem = muddle^ @(choice(field, first@(expr, colon)), expr)
+      fun pair(a,b) = `e([~a, ~b])
+      val elem = pair^ @(choice(field, first@(expr, colon)), expr)
       fun make(as) = `e(Hash.fromList([~..as]))
   in make^ @(listishQ(elem))
 
@@ -115,19 +149,6 @@ fun exprInfix(prec,assoc,make) = infix(exprAt)(prec,assoc,make^)
 extend InfixExprs =
   { TSYM(">>"): exprInfix(1, R, \(l,r) `e(bind _ = ~l in ~r))
   , TSYM("<*"): exprInfix(4, L, \(l,r) `e((\(x,_) x)@(~l, ~r))) }
-
-
-# An utterly hackish quote-form for s-expressions.
-hide val parseAtom = choice(literal, anyId)
-
-hide
-fun parseSexp(env,str,hardk,softk,ok) =
-  (choice(Quasi.pure@(parseAtom),
-          second@(keysym("~"), unquoExpr),
-          Quasi.seq@(parens(many(parseSexp)))))
-    (env,str,hardk,softk,ok)
-
-extend QuoteForms = { TID("s"): parseSexp }
 
 
 # Pattern-matching on lists.
