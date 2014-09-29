@@ -56,10 +56,10 @@
 ;; should these really go here?
 (provide p-unquo-expr q-ify q-listish)
 
-;; TODO: handle unquote-splicing in q-listish.
-;; q-listish : Parse (Q a) -> Parse (Q [a])
 (define p-unquo-expr (<$> q-unquo (choice p-atomic-expr (parens p-expr))))
 
+;; q-listish : Parse (Q a) -> Parse (Q [a])
+;; handles unquote-splicing
 (define ((q-ify listish) p)
   (define elem (choice (*> (keysym "~..") p-unquo-expr) (<$> q-seq* p)))
   (<$> (compose (q-lift append*) q-seq) (listish elem)))
