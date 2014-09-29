@@ -127,9 +127,12 @@ val prefixGoal =
           let val [termsE, d] = uniqTerms(terms, d)
               fun g(terms) = \(st) Hash.get(id, st.db)(terms)(st)
           in [`e(`!e(~g)(~termsE)), d]
+        fun eqify(t1, t2) = \(d)
+           let val [t1, d] = uniqTerm(t1, d)
+               val [t2, d] = uniqTerm(t2, d)
+           in [`e(`!e(~eq)(~t1, ~t2)), d]
     in choice( app^ @(Quasi.pure@(try(anyId <* lparen)), pTerms <* rparen)
-             , app^ @(@ ^ 'eq, List.list^ @(pTerm, equals >> pTerm))
-             )
+             , eqify^ @ (pTerm, equals >> pTerm) )
 
 # infixGoal : Int, Q (Renaming -> (Expr Goal, Renaming))
 #            -> Parse (Q (Renaming -> (Expr Goal, Renaming)))
@@ -160,7 +163,7 @@ extend Ext.QuoteForms = { TID("goal"): pGoal }
 
 val dbEmpty = {}
 fun dbSingle(n,f) = {n: f}
-fun dbJoin(x,y) = Hash.union(x, y, \ (_,l,r) \ (args) disj(x(args), y(args)))
+fun dbJoin(x,y) = Hash.union(x, y, \ (_,l,r) \ (args) disj(l(args), r(args)))
 
 # Parses a statement to a DB
 
@@ -168,6 +171,9 @@ fun dbJoin(x,y) = Hash.union(x, y, \ (_,l,r) \ (args) disj(x(args), y(args)))
 # do we really want the argument list to be optional?
 # pHead : Parse (Symbol, Q [Term])
 val pHead = List.list@(varId, option(^[], parens(pTerms)))
+
+# delays a goal?
+fun zzz(f) = \(st) \() f(st)
 
 # pStmt : Parse (Q DB)
 val pStmt =
@@ -179,7 +185,7 @@ val pStmt =
             fun declify(id) = `d(val ~(AST.patVar(id)) = Var(gensym(`!e(~id))))
             val d = AST.declBegin(List.map(declify, Hash.values(d)))
         in AST.exprLambda([AST.patVar(argsym)],
-             `e(let ~d in conj(eq(~params, ~argexp), ~body)))
+             `e(let ~d in conj(eq(~params, ~argexp), zzz(~body))))
       # in `e(\(argsym) conj(eq(~params, args), ~body))
       #in \(args) conj(eq(params, args), body)
       fun single(n,r) = `e({`!e(~n): ~r})
@@ -187,7 +193,8 @@ val pStmt =
   in bind body = option(^ \(d) [`e(ok), d], keysym(":-") >> pGoal)
   in dot >> @single^(^name, rule^(params, body))
 
-val pStmts = let fun f(x,y) = `e(~x with ~y)
+# NB. foldl reverses argument order.
+val pStmts = let fun f(x,y) = `e(dbJoin(~y, ~x))
              in List.foldl@(@(f^), @ ^ `e({}), many(pStmt))
 
 extend Ext.QuoteForms = { TID("stmt"): pStmt
@@ -207,10 +214,27 @@ extend Terms = { TLBRACK: pTerms <* rbrack }
 # TODO: more things.
 fun query(db, goal) = goal({db = db, sub = {}})
 
+# forces the head of a stream
+fun force([]) = []
+  | force([x, ..ys]) = [x, ..ys]
+  | force(f) = force(f())
+
+fun take(0, _) = []
+  | take(n, []) = []
+  | take(n, [x, ..xs]) = [x, ..(take(n-1, xs))]
+  | take(n, f) = take(n, force(f))
+
+fun head(x) = fst(take(1,x))
+
 # A test
 val db = kanren {
-  append(cons(X,Xs), Ys, XYs) :- append(Xs, Ys, XYs).
+  yes.
+  no :- 2 = 3.
+  eq(X,Y) :- X = Y.
+  foo(X,Y) :- eq(X,Y).
+  foo(X,Y,Z) :- eq(Y,X), eq(Z,X).
   append(nil(), X, X).
+  append(cons(X,Xs), Ys, cons(X,XYs)) :- append(Xs, Ys, XYs).
 }
 
 fun app(a,b,c) =

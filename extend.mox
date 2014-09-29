@@ -183,6 +183,10 @@ hide val listPat =
 
 extend Pats = {TLBRACK: first@(listPat, rbrack)}
 
+fun fst([x, .._]) = x
+fun snd([_, y, .._]) = y
+fun rest([_, ..xs]) = xs
+
 
 # Dictionary utilies
 extend InfixExprs =
