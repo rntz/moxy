@@ -525,15 +525,19 @@
 
 ;; import Name
 (define (@top:import resolve-env eng)
-  (>>= p-caps-id
-    (lambda (name)
-      (define result
-        (parse-eval-file
-          (format "~a.mox" (string-downcase (symbol->string name)))
-          (engine-parse-env eng)
-          (engine-resolve-env eng)
-          eng))
-      (return (result:nodule name result)))))
+  (define (wrap name) (result:nodule name (import-file name eng)))
+  (<$> wrap p-caps-id))
+
+;; use Name
+(define (@top:use resolve-env eng)
+  (<$> (lambda (name) (import-file name eng)) p-caps-id))
+
+(define (import-file name eng)
+  (parse-eval-file
+    (format "~a.mox" (string-downcase (symbol->string name)))
+    (engine-parse-env eng)
+    (engine-resolve-env eng)
+    eng))
 
 (define (@top:extend resolve-env eng)
   (define (run e)
@@ -565,6 +569,7 @@
   (hash
     (TID "module")  @top:nodule
     (TID "import")  @top:import
+    (TID "use")     @top:use
     (TID "extend")  @top:extend
     (TID "private") @top:private
     (TID "hide")    @top:hide
