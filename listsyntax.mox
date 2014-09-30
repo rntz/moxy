@@ -1,0 +1,25 @@
+private
+  open Lex
+  open Parse
+  open Ext
+  open List
+in
+
+hide fun first(x,y) = x
+hide fun second(x,y) = y
+hide val l = lift(first)
+hide val r = lift(second)
+
+# List expressions
+hide val parseList =
+  let fun make(xs) = `e(List.list(~..xs))
+  in lift(Quasi.lift(make))(listishQ(expr))
+
+extend Exprs = Hash.single(TLBRACK, l(parseList, rbrack))
+
+# List patterns
+hide val parseListPat =
+  let fun make(ps) = List.foldr(\ (x,y) `p(cons(~x, ~y)), `p(nil), ps)
+  in lift(Quasi.lift(make))(listishQ(pat))
+
+extend Pats = Hash.single(TLBRACK, l(parseListPat, rbrack))

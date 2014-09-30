@@ -492,12 +492,39 @@
   [(compile env subject on-success on-failure)
     `(let ((,id ,(expr-compile expr env))) ,on-success)])
 
+;; XXX: racket lists
+(define-pat nil ()
+  [(sexp) '()]
+  [resolveExt env-empty]
+  [idents '()]
+  [(compile env subject on-success on-failure)
+    `(if (null? ,subject) ,on-success ,on-failure)])
+
+(define-pat cons (x xs)
+  [(sexp) `(cons ,(pat-sexp x) ,(pat-sexp xs))]
+  [resolveExt (env-join (pat-resolveExt x) (pat-resolveExt xs))]
+  [idents (append (pat-idents x) (pat-idents xs))]
+  [(compile env subject on-success on-failure)
+    (let ([x-id (mktemp 'car)]
+          [xs-id (mktemp 'cdr)])
+      `(if (pair? ,subject)
+         (let ((,x-id (car ,subject))
+               (,xs-id (cdr ,subject)))
+           ,(pat-compile x env x-id
+              (pat-compile xs env xs-id on-success on-failure)
+              on-failure))
+         ,on-failure))])
+
 ;; TODO: pat:and, pat:or, pat:guard
 
 (define @pat:unquote p-unquo-expr)
 
+;; XXX: this is a bad way to do list patterns
 (define builtin-@pats
-  (hash (TSYM "~") @pat:unquote))
+  (hash
+    (TID "nil") (return (q-pure (pat:nil)))
+    (TID "cons") (parens (<$> (q-lift pat:cons) p-pat (*> comma p-pat)))
+    (TSYM "~")  @pat:unquote))
 
 
 ;; -- infix patterns --
