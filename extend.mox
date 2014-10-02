@@ -143,6 +143,7 @@ fun infix(parseAt) = \(prec,assoc,make)
       make@(@leftExpr, parseAt(prec + (case assoc | R -> 0 | L -> 1))) }
 
 fun exprInfix(prec,assoc,make) = infix(exprAt)(prec,assoc,make^)
+fun patInfix(prec,assoc,make) = infix(patAt)(prec,assoc,make^)
 
 
 # x >> y = bind _ = x in y
@@ -200,3 +201,39 @@ hide val parseEta =
   in make^ @(expr)
 
 extend Exprs = { TID("eta"): parseEta }
+
+
+# Pattern combinators
+hide fun andPat(a, b) = {
+  sexp = \ () `s((and ~(a.sexp()) ~(b.sexp()))),
+  resolveExt = Env.join(a.resolveExt, b.resolveExt),
+  idents = List.append(a.idents, b.idents),
+  compile = \(env, subj, onSuc, onFail)
+    a.compile(env, subj, b.compile(env, subj, onSuc, onFail), onFail)
+}
+
+# for now, we assume pats never bind anything other than normal variables
+hide fun patVars(p) = Hash.keys(Env.get(Ext.Vars, p.resolveExt))
+
+# hide fun orPat(a, b) =
+#   let val vars = Set.toList(Set.intersect(Set.fromList(patVars(a)),
+#                                           Set.fromList(patVars(b))))
+#       fun mkVar(name) = [name, {name = name, id = AST.mkId(id), style = 'var}]
+#       val vars = List.map(mkVar, vars)
+#       val resolveExt = Env.single(Ext.Vars, Hash.fromList(vars))
+#       fun sucFor(p) =
+#         let val ds = Hash.fromList(
+#                        Hash.get(p.resolveExt, name))
+#             val d = AST.declBegin(ds)
+#         in `e(let ~ds in ~(AST.exprRacket(onSuc)))
+#   in {
+#     sexp = \ () `s((or ~(a.sexp()) ~(b.sexp()))),
+#     idents = List.map(\ ([_,v]) v.id, vars),
+#     resolveExt = resolveExt,
+#     compile = \(env, subj, onSuc, onFail)
+#       a.compile(env, subj, sucFor(a), b.compile(env, subj, sucFor(b), onFail))
+#   }
+
+extend InfixPats = { TID("and"): patInfix(3, R, andPat)
+                   # , TID("or"): patInfix(2, R, orPat)
+                   }

@@ -108,7 +108,16 @@
       [build build-list]
       map
       [filter (lambda (p l) (filter (compose truthy? p) l))]
-      foldr foldl)
+      foldr foldl
+      [head car] [tail cdr])
+
+    (#:nodule Set
+      [empty (set)]
+      [has (lambda (elem set) (truthify (set-member? set elem)))]
+      [fromList list->set]
+      [toList set->list]
+      [union set-union]
+      [intersect set-intersect])
 
     (#:nodule Hash
       [empty hash-empty]
@@ -124,6 +133,7 @@
       [alter hash-alter]
       [map hash-map]
       [union hash-union]
+      [unions hash-unions]
       ;; XXX lists
       [keys hash-keys]
       [values hash-values]
@@ -135,6 +145,7 @@
       [exprVar expr:var]
       [exprLit expr:lit]
       [exprLambda expr:lambda]
+      [exprRacket expr:racket]
       [patVar pat:var]
       [declBegin decl:begin]
       [varLocal var:local]
