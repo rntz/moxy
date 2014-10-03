@@ -70,7 +70,6 @@ extend InfixExprs =
 
 
 # List expressions.
-# TODO: list comprehensions?
 hide tag Single(x)
 hide tag Splice(x)
 
@@ -85,14 +84,33 @@ hide fun splicedList(elems) =
 
 hide fun makeList(es) = splicedList(map(Single, es))
 
-# parseListElem : Parse (Q (Single Expr | Splice [Expr]))
+# parseListElem : Parse (Single (Q Expr) | Splice (Q [Expr]))
 hide val parseListElem =
-  choice(Single^ @(expr),
-         second@(keysym(".."), Splice^ @(expr)),
+  choice(Single @(expr),
+         second@(keysym(".."), Splice @(expr)),
          # I don't know why this works.
-         second@(keysym("~.."), Splice^ @(makeList^ @(unquoExpr))))
+         second@(keysym("~.."), Splice @(makeList^ @(unquoExpr))))
 
-hide val parseList = splicedList^ @(Quasi.seq@(listish(parseListElem)))
+# TODO: "in" guards, multiple for-loops, etc.
+hide fun parseFor(e) =
+  let fun make(pat, list, body) = `e(List.map(\ (~pat) ~body, ~list))
+  in make^ @(second@(expect(TID("for")), pat),
+             second@(expect(TID("in")), expr),
+             @e)
+
+# parseList : Parse (Q Expr)
+hide val parseList =
+  option(^ `e(List.nil),
+    bind first = second@(optional(comma), parseListElem) in
+    let fun qify(Single(x)) = Single^(x)
+          | qify(Splice(x)) = Splice^(x)
+        fun fux(rest) = splicedList^(Quasi.seq(List.map(qify,cons(first,rest))))
+        val parseRest = fux@(listish(parseListElem))
+    in case first
+        | Single(e) -> choice(parseFor(e), parseRest)
+        | _ -> parseRest)
+
+# hide val parseList = splicedList^ @(Quasi.seq@(listish(parseListElem)))
 
 extend Exprs = Hash.single(TLBRACK, first@(parseList, rbrack))
 
