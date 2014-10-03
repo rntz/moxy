@@ -144,11 +144,18 @@ extend Exprs = Hash.single(TLBRACE, first@(parseHash, rbrace))
 # Dot syntax for accessing "fields" of hashes
 #    a.foo ~> Hash.get(symbol("foo"), a)
 
-hide fun parseHashGet(hashExpr) =
+hide fun parseHashDot(hashExpr) =
   let fun make(hash, field) = `e(Hash.get(~(AST.exprLit(field)), ~hash))
   in make^ @(@hashExpr, Quasi.pure@(varId))
 
-extend InfixExprs = { TSYM("."): { precedence = 10, parse = parseHashGet } }
+extend InfixExprs = { TSYM("."): { precedence = 11, parse = parseHashDot } }
+
+# Bracket syntax for accessing hashes
+hide fun parseHashGet(hashE) =
+  let fun make(hashE, keyE) = `e(Hash.get(~keyE, ~hashE))
+  in make^ @(@hashE, first@(expr,rbrack))
+
+extend InfixExprs = { TLBRACK: { precedence = 11, parse = parseHashGet } }
 
 
 # Convenience for infix operators
