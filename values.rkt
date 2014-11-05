@@ -135,7 +135,7 @@
             (lambda (stx1)
               (syntax-case stx1 ()
                 [(_ fields ...)
-                  #'(ann (? (partial equal? tag-name))
+                  #'(ann (? (curry equal? tag-name))
                          (vector fields ...))]))
             (lambda (stx1)
               (syntax-case stx1 ()

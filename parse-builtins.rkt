@@ -140,7 +140,7 @@
   (<$> q-seq (seq* (<$> q-pure p-var-id) (parens p-pats) (*> equals p-expr))))
 (define p-fun (<$> (compose (q-lift make-fun) q-seq)
                 (begin-sep-by1 p-fun-clause bar)))
-(define @decl:fun (<$> (partial list env-empty) p-fun))
+(define @decl:fun (<$> (curry list env-empty) p-fun))
 
 ;; (begin [Decl])
 ;; expr:let uses this
@@ -251,13 +251,13 @@
 
 (define (make-@extension name empty-join)
   (match-define `(,empty ,join) empty-join)
-  (list env-empty (q-fmap (partial decl:extension name) empty join)))
+  (list env-empty (q-fmap (curry decl:extension name) empty join)))
 
 (define @decl:extension
   ;; should this be a caps-id or a var-id?
   (<$> make-@extension p-caps-id (parens (seq* p-expr (*> comma p-expr)))))
 
-(define @decl:unquote (<$> (partial list env-empty) p-unquo-expr))
+(define @decl:unquote (<$> (curry list env-empty) p-unquo-expr))
 
 (define builtin-@decls
   (hash
@@ -316,7 +316,7 @@
 (define @expr:let
   (pdo
     `(,e ,d) <- (<* p-decl-group (keyword "in"))
-    (<$> (partial (q-lift expr:let) d) (local-env e p-expr))))
+    (<$> (curry (q-lift expr:let) d) (local-env e p-expr))))
 
 ;; (if Expr Expr Expr)
 (define-expr if (subject then else)
@@ -392,7 +392,7 @@
 (define @infix-expr:call
   (record
     [precedence 11]
-    [(parse func-expr) (<$> (partial (q-lift expr:call) func-expr)
+    [(parse func-expr) (<$> (curry (q-lift expr:call) func-expr)
                          (<* (q-listish p-expr) rparen))]))
 
 ;; (seq Expr Expr)
@@ -404,14 +404,14 @@
   (record
     [precedence 0]
     [(parse first-expr)
-      (<$> (partial (q-lift expr:seq) first-expr) (p-expr-at 0))]))
+      (<$> (curry (q-lift expr:seq) first-expr) (p-expr-at 0))]))
 
 ;; infix operators
 ;; associativity must be Left or Right.
 (define-@infix-expr oper (assoc precedence function)
   [(parse left-arg)
     (<$>
-      (lambda (right-arg) (q-fmap (partial expr:call (expr:lit function))
+      (lambda (right-arg) (q-fmap (curry expr:call (expr:lit function))
                        (q-seq* left-arg right-arg)))
       (p-expr-at (match assoc
                    [(L) (+ precedence 1)]

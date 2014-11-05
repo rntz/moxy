@@ -167,14 +167,14 @@
         (lambda (bate bres)
           (ok (or aate bate) (f ares bres)))))))
 
-(define (lift1 f) (partial pmap1 f))
-(define (lift2 f) (partial pmap2 f))
+(define (lift1 f) (curry pmap1 f))
+(define (lift2 f) (curry pmap2 f))
 ;; ((lift2 f) a b) == (pmap2 f a b)
 
 (define (seq ps) (foldr (lift2 cons) (return '()) ps))
 (define seq* (nary seq))
 (define (<$> f . ks) (pmap1 (unary f) (seq ks)))
-(define (lift f) (partial <$> f))
+(define (lift f) (curry <$> f))
 (define (<*> f . ks) (apply <$> (lambda (x . as) (apply x as)) f ks))
 
 (define >>=
@@ -303,7 +303,7 @@
 (define (expect-seq seq [test equal?])
   (try
     (pfilter (take (sequence-length seq))
-      (partial test seq)
+      (curry test seq)
       (lambda (got)
         (string-append "expected " (repr seq) ", got" (repr got))))))
 
@@ -313,7 +313,7 @@
 
 (define (expect t [test equal?])
   (try (pfilter take-one
-         (partial test t)
+         (curry test t)
          (lambda (got)
            (string-append "expected " (repr t) ", got " (repr got))))))
 
@@ -328,11 +328,11 @@
   (try (pmap-maybe take-one f msgf)))
 
 (define (any-of s [test equal?])
-  (satisfy (lambda (c) (sequence-ormap (partial test c) s))
+  (satisfy (lambda (c) (sequence-ormap (curry test c) s))
     (lambda (c) (string-append "expected one of " (repr s)))))
 
 (define (none-of s [test equal?])
-  (satisfy (lambda (c) (not (sequence-ormap (partial test c) s)))
+  (satisfy (lambda (c) (not (sequence-ormap (curry test c) s)))
     (lambda (c) (string-append "expected none of " (repr s)))))
 
 ;; (define alpha (any-of "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"))

@@ -1,7 +1,7 @@
 #lang racket
 
 (provide
-  const map_ flip iter funcall call-with partial nary unary
+  const map_ flip iter funcall call-with curry nary unary
   zip-with zip
   mkid mktemp
   matches? lambda-rec eta
@@ -17,7 +17,7 @@
 
 (define (map_ f . xs) (apply map f xs) (void))
 
-(define ((partial f . as) . bs) (apply f (append as bs)))
+(define ((curry f . as) . bs) (apply f (append as bs)))
 (define ((nary f) . as) (f as))
 (define ((unary f) xs) (apply f xs))
 

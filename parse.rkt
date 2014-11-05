@@ -207,7 +207,7 @@
     ;; TODO: this tag/ann-matching behavior shouldn't be hard-coded in! :(
     ;; TODO: tag/ann patterns without parens afterwards, e.g. Nil
     (<$>
-      (lambda (id args) (q-fmap (partial pat:ann id) (q-seq args)))
+      (lambda (id args) (q-fmap (curry pat:ann id) (q-seq args)))
       (p-var p-caps-id)
       ;; eta necessary to avoid circularity
       (option '() (eta (parens (listish p-pat)))))))
