@@ -70,6 +70,7 @@ extend InfixExprs =
 
 
 # List expressions.
+# FIXME: [f x] parses as [f,x], should parse error
 hide tag Single(x)
 hide tag Splice(x)
 
