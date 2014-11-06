@@ -4,6 +4,7 @@
 
 (require "debug.rkt")
 (require "util.rkt")
+(require "tags.rkt")
 (require "values.rkt")
 (require "objects.rkt")
 (require "lex.rkt")                     ;for the token tags
@@ -17,28 +18,32 @@
 
 (provide new-engine)
 
+(define/match (envpair-join/2 a b)
+  [((list ax ay) (list bx by))
+    (list (env-join ax bx) (env-join ay by))])
+
+(define (envpair-join* l) (reduce l (list env-empty env-empty) envpair-join/2))
+(define envpair-join (nary envpair-join*))
+
 (define (vars x) (list env-empty (env-single @vars x)))
 
-(define (val name value)
+(define (env-val name value)
   (let ((id (gensym name)))
     (namespace-set-variable-value! id value #t)
     (vars (@vars-var name id))))
 
-(define/contract (tag tag ctor)
-  (-> tag? any/c (list/c hash? hash?))
+(define/contract (env-tag tag ctor fields)
+  (-> tag? any/c (listof symbol?) (list/c hash? hash?))
   (let* ([name (tag-name tag)]
          [tag-id (mkid "tag:~a" name)]
          [ctor-id (mkid name)])
     (namespace-set-variable-value! tag-id tag #t)
     (namespace-set-variable-value! ctor-id ctor #t)
     (vars (@vars-ctor name ctor-id tag-id
-            (match (tag-arity tag)
-              [0 None]
-              [n (Just (tag-fields tag))])))))
+            (if (= 0 (tag-arity tag)) None (Just fields))))))
 
-(define (nodule name envlist)
-  (define parse-env (env-join* (map car envlist)))
-  (define resolve-env (env-join* (map cadr envlist)))
+(define (env-nodule name envs)
+  (match-define (list parse-env resolve-env) envs)
   (list
     (env-single @nodules
       (@nodules-nodule name
@@ -47,23 +52,18 @@
           [parseExt parse-env])))
     env-empty))
 
-(define-syntax (mkenv stx)
-  (with-syntax ([(_ d) stx])
-    (syntax-parse #'d
-      [x:id #'(val 'x x)]
-      [(name:id value) #'(val 'name value)]
-      [(#:tag tag-id ctor-id) #'(tag tag-id ctor-id)]
-      [(#:nodule name:id defs ...)
-        #'(nodule 'name (mkenv* defs ...))])))
-
-(define-syntax (mkenv* stx)
-  (syntax-parse stx
-    [(_) #''()]
-    [(_ d ds ...)
-      #'(cons (mkenv d) (mkenv* ds ...))]))
+(define-syntax-parser mkenv
+  [(_ x:id) #'(env-val 'x x)]
+  [(_ (name:id value)) #'(env-val 'name value)]
+  ;; TODO: variadic #:tag
+  [(_ (#:tag name:id))
+    #`(env-tag #,(tag-name-id #'name) name '#,(tag-fields #'name))]
+  [(_ (#:nodule name:id defs ...))
+    #'(env-nodule 'name (mkenv defs ...))]
+  [(_ part ...) #'(envpair-join (mkenv part) ...)])
 
 (define (make-env)
-  (mkenv*
+  (mkenv
     ;; TODO: string-append, string comparison
 
     [debug toggle-debug!]
@@ -72,24 +72,24 @@
     [say printfln]
     [print (lambda (x) (write x) (display "\n"))]
 
-    [#:tag tag:True True]
-    [#:tag tag:False False]
+    [#:tag True]
+    [#:tag False]
     [not    (compose truthify falsey?)]
     [toBool (compose truthify truthy?)]
 
-    [#:tag tag:L L]
-    [#:tag tag:R R]
+    [#:tag L]
+    [#:tag R]
 
-    [#:tag tag:Just Just]
-    [#:tag tag:None None]
+    [#:tag Just]
+    [#:tag None]
     maybe
     [fromMaybe from-maybe]
     [maybeMap maybe-map]
     [maybeFilter
       (lambda (v ok?) (maybe-filter v (compose truthy? ok?)))]
 
-    [#:tag tag:Monoid Monoid]
-    [#:tag tag:ExtPoint ExtPoint]
+    [#:tag Monoid]
+    [#:tag ExtPoint]
 
     [symbol string->symbol]
     gensym
@@ -231,11 +231,11 @@
       )
 
     (#:nodule Lex
-      [#:tag tag:TLPAREN TLPAREN] [#:tag tag:TRPAREN TRPAREN]
-      [#:tag tag:TLBRACK TLBRACK] [#:tag tag:TRBRACK TRBRACK]
-      [#:tag tag:TLBRACE TLBRACE] [#:tag tag:TRBRACE TRBRACE]
-      [#:tag tag:TID TID] [#:tag tag:TSYM TSYM]
-      [#:tag tag:TNUM TNUM] [#:tag tag:TSTR TSTR])
+      [#:tag TLPAREN] [#:tag TRPAREN]
+      [#:tag TLBRACK] [#:tag TRBRACK]
+      [#:tag TLBRACE] [#:tag TRBRACE]
+      [#:tag TID] [#:tag TSYM]
+      [#:tag TNUM] [#:tag TSTR])
     ))
 
 ;; This is a crude hack but it works, so whatever. Ideally we'd expose only the
@@ -247,23 +247,23 @@
 
 (define (new-engine)
   (define ns (make-base-namespace))
-  (define envlist
+  (match-define (list parse-env resolve-env)
     (parameterize ([current-namespace ns])
       ;; Attach existing modules to the namespace so can reuse them.
       ;; This prevents it re-creating all the tags we've defined,
       ;; which leads to weird bugs like:
       ;;
-      ;;     - if N then 0 else 1;
+      ;;     - if False then 0 else 1;
       ;;     0
       ;;     - # wtf?
       ;;
       ;; FIXME: fails if our current directory isn't where values.rkt
       ;; etc. are! :( :( :(
+      (namespace-attach-module anchor-ns "tags.rkt")
       (namespace-attach-module anchor-ns "values.rkt")
       (namespace-attach-module anchor-ns "env.rkt")
+      (namespace-require "tags.rkt")
       (namespace-require "values.rkt")
       (namespace-require "env.rkt")
       (make-env)))
-  (define parse-env (env-join builtin-parse-env (env-join* (map car envlist))))
-  (define resolve-env (env-join* (map cadr envlist)))
-  (make-engine ns parse-env resolve-env))
+  (make-engine ns (env-join builtin-parse-env parse-env) resolve-env))

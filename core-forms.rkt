@@ -11,7 +11,7 @@
   @var:var @var:ctor @vars-var @vars-ctor
   var:local var:unbound var:qualified
   expr:var expr:lit expr:racket expr:call
-  pat:lit pat:var pat:vector pat:ann)
+  pat:lit pat:var pat:vector pat:tagged)
 
 (define (literal? x)
   (or (string? x) (number? x) (procedure? x)))
@@ -88,7 +88,7 @@
        ,on-success
        ,on-failure)])
 
-;; TODO: pat:vector, pat:ann shouldn't have to be core forms :(
+;; TODO: pat:vector, pat:tagged shouldn't have to be core forms :(
 (define-pat vector (elems)
   [(sexp) `(vector ,@(map pat-sexp elems))]
   [resolveExt (env-join* (map pat-resolveExt elems))]
@@ -111,8 +111,8 @@
          ;; not a vector or wrong length
          ,on-failure))])
 
-;; (ann var:Var params:[Pat])
-(define-pat ann (var params)
+;; (tagged var:Var params:[Pat])
+(define-pat tagged (var params)
   [(sexp) `(,(var-sexp var) ,@(map pat-sexp params))]
   [arity (length params)]
   [params-pat (pat:vector params)]
@@ -120,21 +120,21 @@
   [idents (pat-idents params-pat)]
   [(compile env subject on-success on-failure)
     (let* ([info (var-resolve var env
-                   (lambda () (error 'pat:ann "unbound tag ~a"
+                   (lambda () (error 'pat:tagged "unbound tag ~a"
                            (show (var-sexp var)))))]
            [var-id (@var-id info)]
            [tag-id (@var-tag-id info
-                     (lambda () (error 'pat:ann "~a is not a tag"
+                     (lambda () (error 'pat:tagged "~a is not a tag"
                              (show (var-sexp var)))))]
            [tag-arity (@var-tag-arity info)]
-           [tmp (mktemp 'ann-args)])
+           [tmp (mktemp 'tagged-value)])
       (unless (= arity tag-arity)
-        (error 'pat:ann
+        (error 'pat:tagged
           "Constructor pattern has ~a arguments (had ~a, expected ~a)"
           (if (< arity tag-arity) "too few" "too many")
           arity tag-arity))
-      `(if (ann-isa? ,tag-id ,subject)
-         ;; match each pat in params against (ann-args subject)
-         (let ((,tmp (ann-args ,subject)))
+      `(if (tagged-isa? ,tag-id ,subject)
+         ;; match each pat in params against (tagged-value subject)
+         (let ((,tmp (tagged-value ,subject)))
            ,(pat-compile params-pat env tmp on-success on-failure))
          ,on-failure))])

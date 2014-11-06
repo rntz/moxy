@@ -5,26 +5,15 @@
 (require parser-tools/lex)
 (require (prefix-in : parser-tools/lex-sre))
 
-(require "values.rkt")
+(require "tags.rkt")
 
 ;; Representing tokens
 (provide
-  tag:TLPAREN TLPAREN TLPAREN? tag:TRPAREN TRPAREN TRPAREN?
-  tag:TLBRACK TLBRACK TLBRACK? tag:TRBRACK TRBRACK TRBRACK?
-  tag:TLBRACE TLBRACE TLBRACE? tag:TRBRACE TRBRACE TRBRACE?
-  tag:TID TID TID? TID-value
-  tag:TSYM TSYM TSYM? TSYM-value
-  tag:TNUM TNUM TNUM? TNUM-value
-  tag:TSTR TSTR TSTR? TSTR-value)
+  (tag-out TLPAREN TRPAREN TLBRACK TRBRACK TLBRACE TRBRACE TID TSYM TNUM TSTR))
 
-(define-tag TLPAREN) (define-tag TRPAREN)
-(define-tag TLBRACK) (define-tag TRBRACK)
-(define-tag TLBRACE) (define-tag TRBRACE)
-
-(define-tag TID value)
-(define-tag TSYM value)
-(define-tag TNUM value)
-(define-tag TSTR value)
+(define-tags
+  TLPAREN TRPAREN TLBRACK TRBRACK TLBRACE TRBRACE
+  (TID value) (TSYM value) (TNUM value) (TSTR value))
 
 
 ;; The actual lexing

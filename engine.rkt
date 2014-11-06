@@ -6,5 +6,4 @@
 ;;
 ;; we need {parse,resolve}-env when we load a new file or start a new repl, so
 ;; that it sees only the prelude environment.
-(define-struct engine (namespace parse-env resolve-env)
-  #:prefab)
+(define-struct engine (namespace parse-env resolve-env) #:prefab)

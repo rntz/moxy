@@ -1,12 +1,11 @@
 #lang racket
 
 (require
-  (for-syntax (only-in racket/syntax
-                format-id with-syntax*))
-  racket/generic                ;for gen:custom-write
+;;  (for-syntax (only-in racket/syntax format-id with-syntax*))
   (only-in racket [hash-map racket/hash-map]))
 
 (require "util.rkt")
+(require "tags.rkt")
 
 
 ;; Hashtable interface. Modelled on
@@ -67,112 +66,11 @@
       a]))
 
 
-;; Tag & annotated value interface
-(provide
-  new-tag tag? tag-name tag-uid tag-arity tag-fields tag-field-index
-  ann ann? make-ann ann-tag ann-args ann-get-field ann-isa?
-  define-tag)
-
-;; omit-define-syntaxes necessary to allow (define-match-expander ann) later
-(struct ann (tag args)
-  #:transparent
-  #:methods gen:custom-write
-  ;; mode is #t for 'write, #f for 'display, or 0 or 1 (indicating quoting
-  ;; depth) for 'print.
-  [(define (write-proc self to-port mode)
-     (let* ([recur (match mode
-                    ['#t (lambda (x) (write x to-port))]
-                    ['#f (lambda (x) (display x to-port))]
-                    [(or '0 '1) (lambda (x) (print x to-port mode))])]
-            [tag (ann-tag self)]
-            [name (tag-name tag)])
-       ;; this completely ignores mode, because I just don't care.
-       (recur
-         (if (= 0 (tag-arity tag))
-           name
-           (cons name (vector->list (ann-args self)))))))])
-
-(struct tag (name uid arity field-map) #:prefab
-  #:constructor-name make-tag)
-
-(define (new-tag name field-names)
-  (make-tag name (gensym name) (length field-names)
-    (hash-from-keys-values field-names (in-naturals 0))))
-
-(define (tag-fields tag)
-  (map car (sort (hash->list (tag-field-map tag)) < #:key cdr)))
-
-(define (tag-field-index tag field-name)
-  ;; TODO: better error message on failure
-  (hash-get field-name (tag-field-map tag)
-    (lambda () "tag has no such field")))
-
-(define (make-ann tag . args)
-  (if (= (tag-arity tag) (length args))
-    (ann tag (apply vector-immutable args))
-    (error "Tag arity does not match number of arguments")))
-
-(define (ann-get-field ann field-name)
-  (vector-ref
-    (ann-args ann)
-    (tag-field-index (ann-tag ann) field-name)))
-
-(define (ann-isa? tag ann)
-  (and (ann? ann) (equal? tag (ann-tag ann))))
-
-
-;; Defines a new tag, along with a constructor & match-expander for it.
-(define-syntax (define-tag stx)
-  (with-syntax* ([(_ name fields ...) stx]
-                 [tag-name (format-id #'name "tag:~a" #'name)]
-                 [name?    (format-id #'name "~a?" #'name)])
-    (let ([field-list (syntax->datum #'(fields ...))])
-      #`(begin
-          (define tag-name (new-tag 'name '#,field-list))
-          (define (name? x) (ann-isa? tag-name x))
-          ;; Define pattern-matcher & constructor
-          (define-match-expander name
-            (lambda (stx1)
-              (syntax-case stx1 ()
-                [(_ fields ...)
-                  #'(ann (? (curry equal? tag-name))
-                         (vector fields ...))]))
-            (lambda (stx1)
-              (syntax-case stx1 ()
-                #,@(if (= 0 (length field-list))
-                     #'([(_ (... ...))
-                          (error "invalid syntax: can't apply nullary tag")]
-                        [_:id #'(make-ann tag-name)])
-                     #'([(_ args (... ...))
-                         #'(make-ann tag-name args (... ...))]
-                        [_:id #'(lambda (fields ...)
-                                  (make-ann tag-name fields ...))])))))
-          ;; For each field, define accessor
-          #,@(for/list ([i (in-naturals 0)]
-                        [field (syntax->list #'(fields ...))])
-               (with-syntax ([f field]
-                             [accessor (format-id #'name "~a-~a" #'name field)])
-                 #`(define (accessor x)
-                     (if (name? x)
-                       (vector-ref (ann-args x) '#,i)
-                       ;; TODO: better error message
-                       (error "invalid use of accessor")))))))))
-
-
 ;; Builtin tags.
 (provide
-  tag:L L L?
-  tag:R R R?
-  tag:True True True? tag:False False False? truthy? falsey? truthify
-  tag:Ok Ok Ok? Ok-value
-  tag:Err Err Err? Err-value
-  either
-  tag:Just Just Just? Just-value
-  tag:None None None?
-  maybe? maybe from-maybe maybe-bind maybe-map maybe-filter
-  Maybe/c
-  tag:Monoid Monoid Monoid? Monoid-join Monoid-empty
-  tag:ExtPoint ExtPoint ExtPoint? ExtPoint-name ExtPoint-uid ExtPoint-monoid
+  (tag-out L R True False Just None Ok Err Monoid ExtPoint)
+  truthy? falsey? truthify
+  maybe? maybe from-maybe maybe-bind maybe-map maybe-filter Maybe/c
   ExtPoint-join ExtPoint-empty)
 
 ;; directions. built-in for associativity purposes.
@@ -190,15 +88,6 @@
   (if (boolean? x) (if x True False)
     (error "never call truthify on a non-boolean!")))
 
-;; either
-(define-tag Ok value)
-(define-tag Err value)
-
-(define (either v on-ok on-err)
-  (match v
-    [(Ok v) (on-ok v)]
-    [(Err v) (on-err v)]))
-
 ;; maybe
 (define-tag Just value)
 (define-tag None)
@@ -206,7 +95,7 @@
 (define (maybe? x) (or (Just? x) (None? x)))
 (define (Maybe/c c)
   (or/c None?
-    (struct/c ann
+    (struct/c tagged
       (lambda (x) (equal? tag:Just x))
       (vector-immutable/c c))))
 
@@ -221,6 +110,9 @@
   (match v
     [(Just x) (if (ok? x) v None)]
     [(None) v]))
+
+(define-tag Ok value)
+(define-tag Err value)
 
 (define-tag Monoid join empty)
 (define-tag ExtPoint name uid monoid)

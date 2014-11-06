@@ -1,9 +1,12 @@
 #lang racket
 
+(require (for-syntax syntax/parse))
+
 (provide
   const map_ flip iter funcall call-with curry nary unary
   zip-with zip
   mkid mktemp
+  define-syntax-parser define-many
   matches? lambda-rec eta
   define-interface
   foldl1 reduce dict-union hash-unions
@@ -39,6 +42,21 @@
   (letrec ((name (lambda rest ...))) name))
 
 (define-syntax-rule (eta f) (lambda x (apply f x)))
+
+;;; Metasyntactic help
+(define-syntax define-syntax-parser
+  (syntax-parser
+    [(_ name:id rest ...)
+      #'(define-syntax name (syntax-parser rest ...))]
+    [(_ (name:id args ...) body ...)
+      #'(define-syntax-parser name [(_ args ...) body ...])]))
+
+(define-syntax-parser syntax-magic-apply
+  [(_ func arg:id) #'(func arg)]
+  [(_ func (arg ...)) #'(func arg ...)])
+
+(define-syntax-rule (define-many definer arg ...)
+  (begin (syntax-magic-apply definer arg) ...))
 
 ;;; Syntax for interfaces
 (define-syntax define-interface

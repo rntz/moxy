@@ -5,6 +5,7 @@
 
 (require "debug.rkt")
 (require "util.rkt")
+(require "tags.rkt")
 (require "values.rkt")
 (require "env.rkt")
 (require "lex.rkt")

@@ -2,6 +2,7 @@
 
 (require "debug.rkt")
 (require "util.rkt")
+(require "tags.rkt")
 (require "values.rkt")
 (require "objects.rkt")
 (require "env.rkt")
@@ -195,10 +196,10 @@
   [info (@var:ctor name id tag-id params)]
   [resolveExt (env-single @vars (hash name info))]
   [(compile env)
-    `((,tag-id (new-tag ',name ',(from-maybe params '())))
+    `((,tag-id (make-tag! ',name ',(maybe params 0 length)))
       (,id ,(match params
-              [(Just l) `(lambda ,l (make-ann ,tag-id ,@l))]
-              [(None) `(make-ann ,tag-id)])))])
+              [(Just l) `(lambda ,l (make-tagged ,tag-id ,@l))]
+              [(None) `(make-tagged ,tag-id)])))])
 
 (define (make-@decl i ps) `(,env-empty ,(q-pure (decl:tag i ps))))
 (define @decl:tag
