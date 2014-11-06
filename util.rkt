@@ -3,11 +3,11 @@
 (require (for-syntax syntax/parse))
 
 (provide
-  const map_ flip iter funcall call-with curry nary unary
+  const flip iter funcall call-with curry nary unary
   zip-with zip
   mkid mktemp
   define-syntax-parser define-many
-  matches? lambda-rec eta
+  eta
   define-interface
   foldl1 reduce dict-union hash-unions
   show repr printfln)
@@ -18,16 +18,12 @@
 (define (funcall f . as) (apply f as))
 (define ((call-with . as) f) (apply f as))
 
-(define (map_ f . xs) (apply map f xs) (void))
-
 (define ((curry f . as) . bs) (apply f (append as bs)))
 (define ((nary f) . as) (f as))
 (define ((unary f) xs) (apply f xs))
 
-;; zips arbitrary sequences, not just lists
-(define (zip-with f xs ys)
-  (for/list ([x xs] [y ys]) (f x y)))
-
+;; zips arbitrary sequences; always outputs a list
+(define (zip-with f xs ys) (for/list ([x xs] [y ys]) (f x y)))
 (define (zip xs ys) (zip-with list xs ys))
 
 (define (mkid fmt . args) (gensym (apply format (format "~a." fmt) args)))
@@ -35,12 +31,6 @@
 
 
 ;;; Some syntactic help
-(define-syntax-rule (matches? exp pat)
-  (match exp [pat #t] [_ #f]))
-
-(define-syntax-rule (lambda-rec name rest ...)
-  (letrec ((name (lambda rest ...))) name))
-
 (define-syntax-rule (eta f) (lambda x (apply f x)))
 
 ;;; Metasyntactic help
