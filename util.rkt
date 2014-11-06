@@ -49,30 +49,16 @@
   (begin (syntax-magic-apply definer arg) ...))
 
 ;;; Syntax for interfaces
-(define-syntax define-interface
-  (syntax-rules ()
-    [(define-interface iface-name parents method ...)
-      (begin
-        (define iface-name (interface parents method ...))
-        (define-methods iface-name method ...))]))
+(define-syntax-rule (define-interface iface-name parents method ...)
+  (begin
+    (define iface-name (interface parents method ...))
+    (define-method iface-name method) ...))
 
-(define-syntax define-methods
-  (syntax-rules ()
-    [(define-methods iface-name) (begin)]
-    [(define-methods iface-name method methods ...)
-      (begin
-        (define-method iface-name method)
-        (define-methods iface-name methods ...))]))
-
-(define-syntax define-method
-  (syntax-rules ()
-    [(define-method iface-name (method contract))
-      (define-method iface-name method)]
-    [(define-method iface-name method)
-      (define method
-        (let ([g (generic iface-name method)])
-          (lambda (object . args)
-            (send-generic object g . args))))]))
+(define-syntax-rule (define-method iface-name method)
+  (define method
+    (let ([g (generic iface-name method)])
+      (lambda (object . args)
+        (send-generic object g . args)))))
 
 
 ;; Data structure manipulations

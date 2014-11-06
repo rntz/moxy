@@ -80,8 +80,8 @@
                (-> #,name? any/c)
                (vector-ref (tagged-value x) #,i)))))
 
-(define-syntax-rule (define-tags args ...)
-  (define-many define-tag args ...))
+(define-syntax-rule (define-tags arg ...)
+  (define-many define-tag arg ...))
 
 (define-provide-syntax tag-out
   (syntax-parser
