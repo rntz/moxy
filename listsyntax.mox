@@ -23,3 +23,5 @@ hide val parseListPat =
   in lift(Quasi.lift(make))(listishQ(pat))
 
 extend Pats = Hash.single(TLBRACK, l(parseListPat, rbrack))
+
+val hello = "hello from listsyntax.mox"
