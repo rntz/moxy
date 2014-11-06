@@ -133,7 +133,7 @@
       [alter hash-alter]
       [map hash-map]
       [union hash-union]
-      [unions hash-unions]
+      ;; [unions hash-unions]
       ;; XXX lists
       [keys hash-keys]
       [values hash-values]
