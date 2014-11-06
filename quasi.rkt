@@ -34,8 +34,6 @@
 (define (fmap f . as) (apply (lift f) as))
 (define (ap f . as) (apply (lift (lambda (f . as) (apply f as))) f as))
 
-;; is this really right?
-;; I'm not convinced.
 (define ((quasi k) n) (k (+ n 1)))
 (define ((unquo k) n)
   (if (> n 0) (k (- n 1))
