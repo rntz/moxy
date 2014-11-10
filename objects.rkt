@@ -3,8 +3,8 @@
 (require
   (for-syntax
     (only-in racket/set list->set set-member?)
-    syntax/parse
-    (only-in racket/syntax format-id with-syntax*)))
+    syntax/parse racket/syntax
+    "tags.rkt"))
 
 (require "util.rkt")
 (require "values.rkt")
@@ -32,67 +32,56 @@
   define-iface define-accessors define-accessor define-form
   record show-record)
 
-(define-for-syntax (make-define-form stx form fields ifaces methods)
-  (with-syntax ([form form]
-                [(field ...) fields]
-                [(iface ...) ifaces]
-                [(method ...) methods])
-    (define (method-name a)
-        (if (pair? a) (car a) a))
-      (define fields (syntax->datum #'(field ...)))
-      (define methods (map (compose method-name car)
-                        (syntax->datum #'(method ...))))
-      (define all-methods (list->set (append fields methods)))
-      (for* ([ifc (syntax->list #'(iface ...))]
-             [m (map method-name (syntax-local-value ifc))])
-        (unless (set-member? all-methods m)
-          (raise-syntax-error #f (format "method ~v not implemented" m) stx)))
-      #`(define (form field ...)
-          (record
-            [#,'form 'form]
-            [field field] ...
-            method ...))))
+(begin-for-syntax
+  (define-syntax-class method
+    (pattern (name:id value))
+    (pattern ((name:id param:id ...) body ...)
+      #:attr value #'(lambda (param ...) body ...))))
 
-(define-syntax (define-iface stx)
-  (syntax-parse stx
-    [(_ iface-name accessor ...)
-      #`(begin
-          (define-syntax iface-name '(accessor ...))
-          (define-accessors iface-name accessor ...)
-          (define-syntax (#,(format-id #'iface-name "define-~a" #'iface-name)
-                           stx)
-            (syntax-parse stx
-              [(_ form-name:id (field:id (... ...)) method (... ...))
-                (make-define-form stx
-                  (format-id #'form-name "~a:~a" #'iface-name #'form-name)
-                  #'(field (... ...))
-                  #'(iface-name)
-                  #'(method (... ...)))])))]))
+(define-syntax-parser (record binding:method ...)
+  #`(let* ((binding.name binding.value) ...)
+      (make-immutable-hash `((binding.name . ,binding.name) ...))))
 
-(define-syntax (define-accessors stx)
-  (syntax-parse stx
-    [(_ prefix:id accessor ...)
-      (let ([mk-name (lambda (name)
-                       (format-id #'prefix "~a-~a" #'prefix name))])
-        #`(begin
-            #,@(for/list [(axor (syntax->list #'(accessor ...)))]
-                 (syntax-parse axor
-                   [(name:id param:id ...)
-                     #`(define-accessor #,(mk-name #'name) name (param ...))]
-                   [name:id
-                     #`(define-accessor #,(mk-name #'name) name)]))))]))
+(define-for-syntax (make-define-form stx form fields_ ifaces methods_)
+  (define/syntax-parse (field:id ...) fields_)
+  (define/syntax-parse (iface:id ...) ifaces)
+  (define/syntax-parse (method:method ...) methods_)
+  ;; FIXME: this is ugly
+  (define (method-name a) (if (pair? a) (car a) a))
+  (define all-methods (list->set (syntax->datum #'(field ... method.name ...))))
+  (for* ([ifc (syntax->list #'(iface ...))]
+         [m (map method-name (syntax-local-value ifc))]) ;ugliness here
+    (unless (set-member? all-methods m)
+      (raise-syntax-error #f (format "method ~v not implemented" m) stx)))
+  #`(define (#,form field ...)
+      (record [#,'form '#,form] [field field] ... method ...)))
 
-(define-syntax (define-accessor stx)
-  (syntax-parse stx
-    [(_ axor-name:id key:id)
-      #`(define (axor-name self [or-else #f])
-          (hash-get 'key self (or or-else (lambda () (error 'axor-name
-                                                  "absent field: ~v" 'key)))))]
-    [(_ axor-name:id key:id (param:id ...))
-      #`(define (axor-name self param ...)
-          ((hash-get 'key self (lambda ()
-                                 (error 'axor-name "absent method: ~v" 'key)))
-            param ...))]))
+(define-syntax-parser (define-iface iface accessor ...)
+  #`(begin
+      (define-syntax iface '(accessor ...))
+      (define-accessors iface accessor ...)
+      (define-syntax (#,(format-id #'iface "define-~a" #'iface) stx)
+        (syntax-parse stx
+          [(_ form:id (field:id (... ...)) method:method (... ...))
+           (define iface-form (format-id #'form "~a:~a" #'iface #'form))
+           (make-define-form stx iface-form
+             #'(field (... ...)) #'(iface) #'(method (... ...)))]))))
+
+(define-syntax-parser (define-accessors prefix:id accessor ...)
+  #'(begin (define-accessor prefix accessor) ...))
+
+(define-syntax-parser define-accessor
+  [(_ prefix:id field:id)
+    (define/with-syntax name (format-id #'prefix "~a-~a" #'prefix #'field))
+    #`(define (name self [or-else #f])
+        (hash-get 'field self
+          (or or-else (lambda () (error 'name "absent field: ~v" 'field)))))]
+  [(_ prefix:id (method:id param:id ...))
+    (define/with-syntax name (format-id #'prefix "~a-~a" #'prefix #'method))
+    #`(define (name self param ...)
+        ((hash-get 'method self
+           (lambda () (error 'name "absent method: ~v" 'method)))
+          param ...))])
 
 (define-syntax (define-form stx)
   (syntax-parse stx
@@ -102,16 +91,6 @@
       (make-define-form stx #'form #'(field ...) #'(iface) #'(method ...))]
     [(_ form (field:id ...) method ...)
       (make-define-form stx #'form #'(field ...) #'() #'(method ...))]))
-
-(begin-for-syntax
-  (define-syntax-class record-field
-    (pattern (name:id value))
-    (pattern ((name:id param:id ...) body ...)
-      #:attr value #'(lambda (param ...) body ...))))
-
-(define-syntax-parser (record binding:record-field ...)
-  #`(let* ((binding.name binding.value) ...)
-      (make-immutable-hash `((binding.name . ,binding.name) ...))))
 
 ;; Pretty-printing records.
 (define (show-record r [indent 0])
