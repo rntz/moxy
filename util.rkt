@@ -9,7 +9,7 @@
   define-syntax-parser define-many
   eta
   define-interface
-  foldl1 reduce ;; dict-union hash-unions
+  reduce ;; foldl1 dict-union hash-unions
   show repr printfln)
 
 (define (const x) (lambda _ x))
@@ -62,12 +62,11 @@
 
 
 ;; Data structure manipulations
-;; not sure I need this
-(define (foldl1 f xs)
-  (match xs
-    ['() (error "foldl1 called on empty list")]
-    [`(,x) x]
-    [(cons x xs) (foldl f x xs)]))
+;; (define (foldl1 f xs)
+;;   (match xs
+;;     ['() (error "foldl1 called on empty list")]
+;;     [`(,x) x]
+;;     [(cons x xs) (foldl f x xs)]))
 
 ;; Reduces a list using a monoid
 (define (reduce list identity function)

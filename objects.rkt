@@ -103,22 +103,15 @@
     [(_ form (field:id ...) method ...)
       (make-define-form stx #'form #'(field ...) #'() #'(method ...))]))
 
-(define-syntax (record stx)
-  (let* ([bindings (cdr (syntax->list stx))]
-         [names (map (lambda (b) (syntax-parse b
-                              [(name:id value) #'name]
-                              ;; TODO: must have at least one body expr
-                              [((name:id param:id ...) body ...) #'name]))
-                  bindings)]
-         [exprs (map (lambda (b) (syntax-parse b
-                              [(name:id value) #'value]
-                              [((name:id param:id ...) body ...)
-                                #'(lambda (param ...) body ...)]))
-                  bindings)])
-    (with-syntax ([(name ...) names] [(expr ...) exprs])
-      #`(make-immutable-hash
-          (let* ((name expr) ...)
-            `((name . ,name) ...))))))
+(begin-for-syntax
+  (define-syntax-class record-field
+    (pattern (name:id value))
+    (pattern ((name:id param:id ...) body ...)
+      #:attr value #'(lambda (param ...) body ...))))
+
+(define-syntax-parser (record binding:record-field ...)
+  #`(let* ((binding.name binding.value) ...)
+      (make-immutable-hash `((binding.name . ,binding.name) ...))))
 
 ;; Pretty-printing records.
 (define (show-record r [indent 0])

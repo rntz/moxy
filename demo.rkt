@@ -3,6 +3,7 @@
 (require racket/stream)
 
 (require "debug.rkt")
+(require "tags.rkt")
 (require "util.rkt")
 (require "values.rkt")
 (require "objects.rkt")

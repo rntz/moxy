@@ -1,8 +1,6 @@
 #lang racket
 
-(require
-;;  (for-syntax (only-in racket/syntax format-id with-syntax*))
-  (only-in racket [hash-map racket/hash-map]))
+(require (only-in racket [hash-map racket/hash-map]))
 
 (require "util.rkt")
 (require "tags.rkt")
@@ -74,12 +72,10 @@
   ExtPoint-join ExtPoint-empty)
 
 ;; directions. built-in for associativity purposes.
-(define-tag L)
-(define-tag R)
+(define-tags L R)
 
 ;; booleans
-(define-tag True)
-(define-tag False)
+(define-tags True False)
 (define (falsey? x)
   (if (not (boolean? x)) (False? x)
     (error "never call falsey? on a boolean!")))
@@ -89,8 +85,7 @@
     (error "never call truthify on a non-boolean!")))
 
 ;; maybe
-(define-tag Just value)
-(define-tag None)
+(define-tags None (Just value))
 
 (define (maybe? x) (or (Just? x) (None? x)))
 (define (Maybe/c c)
@@ -111,8 +106,7 @@
     [(Just x) (if (ok? x) v None)]
     [(None) v]))
 
-(define-tag Ok value)
-(define-tag Err value)
+(define-tags (Ok value) (Err value))
 
 (define-tag Monoid join empty)
 (define-tag ExtPoint name uid monoid)
