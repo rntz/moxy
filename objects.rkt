@@ -46,7 +46,7 @@
   (define/syntax-parse (field:id ...) fields_)
   (define/syntax-parse (iface:id ...) ifaces)
   (define/syntax-parse (method:method ...) methods_)
-  ;; FIXME: this is ugly
+  ;; TODO: this is ugly
   (define (method-name a) (if (pair? a) (car a) a))
   (define all-methods (list->set (syntax->datum #'(field ... method.name ...))))
   (for* ([ifc (syntax->list #'(iface ...))]
