@@ -85,10 +85,10 @@
 
 (define-syntax (define-form stx)
   (syntax-parse stx
-    [(_ form (field:id ...) #:isa (iface:id ...) method ...)
-      (make-define-form stx #'form #'(field ...) #'(iface ...) #'(method ...))]
-    [(_ form (field:id ...) #:isa iface:id method ...)
-      (make-define-form stx #'form #'(field ...) #'(iface) #'(method ...))]
+    ;; [(_ form (field:id ...) #:isa (iface:id ...) method ...)
+    ;;   (make-define-form stx #'form #'(field ...) #'(iface ...) #'(method ...))]
+    ;; [(_ form (field:id ...) #:isa iface:id method ...)
+    ;;   (make-define-form stx #'form #'(field ...) #'(iface) #'(method ...))]
     [(_ form (field:id ...) method ...)
       (make-define-form stx #'form #'(field ...) #'() #'(method ...))]))
 
