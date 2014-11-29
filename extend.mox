@@ -9,10 +9,6 @@ in
 fun first(a,b) = a
 fun second(a,b) = b
 
-fun testParse(parser) =
-  # env, stream, hardk, softk, ok
-  parser(None, None, first, first, second)
-
 # precedence 12 prohibits all infix operators, even function application
 val headExpr = exprAt(12)
 val callExpr = exprAt(11) # prohibits all except function application
@@ -249,7 +245,7 @@ hide fun patVars(p) = Hash.keys(Env.get(Ext.Vars, p.resolveExt))
 #       val resolveExt = Env.single(Ext.Vars, Hash.fromList(vars))
 #       fun sucFor(p) =
 #         let val ds = Hash.fromList(
-#                        Hash.get(p.resolveExt, name))
+#                        p.resolveExt[name])
 #             val d = AST.declBegin(ds)
 #         in `e(let ~ds in ~(AST.exprRacket(onSuc)))
 #   in {
