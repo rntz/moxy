@@ -108,6 +108,7 @@
 
 (define-tags (Ok value) (Err value))
 
+;; TODO: eliminate Monoid, just have ExtPoints?
 (define-tag Monoid join empty)
 (define-tag ExtPoint name uid monoid)
 

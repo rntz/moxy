@@ -3,8 +3,7 @@
 (require
   (for-syntax
     (only-in racket/set list->set set-member?)
-    syntax/parse racket/syntax
-    "tags.rkt"))
+    syntax/parse racket/syntax))
 
 (require "util.rkt")
 (require "values.rkt")

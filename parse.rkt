@@ -29,27 +29,21 @@
   p-decl p-decls
   parse-eval parse-eval-one)
 
-(define (parse parser env what [whole #t])
-  ((if whole (<* parser peof) parser)
-    env
-    (stream-stream
-      (cond
-        [(stream? what) what]
-        [(port? what) (tokenize what)]
-        [(string? what) (call-with-input-string what tokenize)]
-        [#t (error 'parse "don't know how to parse: ~v" what)]))
-    (lambda (loc msg) (error 'parse "hard error at pos ~a: ~a" loc msg))
-    (lambda (loc msg) (error 'parse "soft error at pos ~a: ~a" loc msg))
+(define (parse parser env stream)
+  (define ((err quality) loc msg)
+    (error 'parse "~a error at pos ~a: ~a" quality loc msg))
+  (parser env (stream-stream stream) (err "hard") (err "soft")
     (lambda (_ r) r)))
 
 ;; Path, ParseEnv, ResolveEnv, Engine -> Result
 (define (parse-eval-file filepath parse-env resolve-env eng)
+  (define p (<* (parse-eval resolve-env eng) peof))
   (call-with-input-file filepath
     (lambda (port)
       (debugf "Loading ~a...\n" filepath)
-      (define x (parse (parse-eval resolve-env eng) parse-env port))
-      (debugf "done!")
-      x)))
+      (begin0
+        (parse p parse-env (tokenize port))
+        (debugf "done!")))))
 
 
 ;; Utility thingies
