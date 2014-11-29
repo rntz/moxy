@@ -175,6 +175,11 @@ val pHead = List.list@(varId, option(^[], parens(pTerms)))
 # delays a goal?
 fun zzz(f) = \(st) \() f(st)
 
+# freshVars : Renaming -> Decl
+fun freshVars(renaming) =
+  let fun declify(id) = `d(val ~(AST.patVar(id)) = Var(gensym(`!e(~id))))
+  in AST.declBegin(List.map(declify, Hash.values(renaming)))
+
 # pStmt : Parse (Q DB)
 val pStmt =
   let fun rule(params, body) =
@@ -182,10 +187,9 @@ val pStmt =
             val [body, d] = body(d)
             val argsym = AST.mkTemp("args")
             val argexp = AST.exprVar(AST.varLocal(argsym))
-            fun declify(id) = `d(val ~(AST.patVar(id)) = Var(gensym(`!e(~id))))
-            val d = AST.declBegin(List.map(declify, Hash.values(d)))
+            val decls = freshVars(d)
         in AST.exprLambda([AST.patVar(argsym)],
-             `e(let ~d in conj(eq(~params, ~argexp), zzz(~body))))
+             `e(let ~decls in conj(eq(~params, ~argexp), zzz(~body))))
       # in `e(\(argsym) conj(eq(~params, args), ~body))
       #in \(args) conj(eq(params, args), body)
       fun single(n,r) = `e({`!e(~n): ~r})
@@ -203,6 +207,17 @@ extend Ext.QuoteForms = { TID("stmt"): pStmt
 # Embedding Kanren in Moxy
 extend Ext.Exprs =
   { TID("kanren"): braces(pStmts) }
+
+
+# Queries
+val pQuery =
+  let fun make(f) =
+        let val [goal, d] = f({})
+            val decls = freshVars(d)
+        in `e(let ~decls in ~goal)
+  in make^ @(pGoal)
+
+extend Ext.QuoteForms = { TID("query"): pQuery }
 
 
 # List terms
@@ -230,9 +245,12 @@ fun head(x) = fst(take(1,x))
 val db = kanren {
   yes.
   no :- 2 = 3.
+
   eq(X,Y) :- X = Y.
+
   foo(X,Y) :- eq(X,Y).
   foo(X,Y,Z) :- eq(Y,X), eq(Z,X).
+
   append(nil(), X, X).
   append(cons(X,Xs), Ys, cons(X,XYs)) :- append(Xs, Ys, XYs).
 }
