@@ -72,23 +72,18 @@
     [say printfln]
     [print (lambda (x) (write x) (display "\n"))]
 
-    [#:tag True]
-    [#:tag False]
+    [#:tag True] [#:tag False]
     [not    (compose truthify falsey?)]
     [toBool (compose truthify truthy?)]
 
-    [#:tag L]
-    [#:tag R]
+    [#:tag L] [#:tag R]
 
-    [#:tag Just]
-    [#:tag None]
+    [#:tag Just] [#:tag None]
     maybe
     [fromMaybe from-maybe]
     [maybeMap maybe-map]
-    [maybeFilter
-      (lambda (v ok?) (maybe-filter v (compose truthy? ok?)))]
+    [maybeFilter (lambda (v ok?) (maybe-filter v (compose truthy? ok?)))]
 
-    [#:tag Monoid]
     [#:tag ExtPoint]
 
     [symbol string->symbol]

@@ -61,10 +61,9 @@
 
 ;; Builtin tags.
 (provide
-  (tag-out L R True False Just None Ok Err Monoid ExtPoint)
+  (tag-out L R True False Just None Ok Err ExtPoint)
   truthy? falsey? truthify
-  maybe? maybe from-maybe maybe-bind maybe-map maybe-filter Maybe/c
-  ExtPoint-join ExtPoint-empty)
+  maybe? maybe from-maybe maybe-bind maybe-map maybe-filter Maybe/c)
 
 ;; directions. built-in for associativity purposes.
 (define-tags L R)
@@ -103,9 +102,4 @@
 
 (define-tags (Ok value) (Err value))
 
-;; TODO: eliminate Monoid, just have ExtPoints?
-(define-tag Monoid join empty)
-(define-tag ExtPoint name uid monoid)
-
-(define ExtPoint-join (compose Monoid-join ExtPoint-monoid))
-(define ExtPoint-empty (compose Monoid-empty ExtPoint-monoid))
+(define-tag ExtPoint name uid join empty)

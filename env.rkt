@@ -9,7 +9,7 @@
 (provide make-ExtPoint define-ExtPoint ExtPoint-equal?)
 
 (define (make-ExtPoint name join empty)
-  (ExtPoint name (gensym name) (Monoid join empty)))
+  (ExtPoint name (gensym name) join empty))
 
 (define-syntax (define-ExtPoint stx)
   (syntax-case stx ()
@@ -31,7 +31,7 @@
 ;; monoid values. If an extension-point is absent, it is the same as being
 ;; mapped to its empty value.
 
-(provide env-empty env-join2 env-join* env-join env-monoid env-single env-get)
+(provide env-empty env-join2 env-join* env-join env-single env-get)
 
 ;; hashtable type used for extension-point envs. I don't think this is
 ;; necessary, since racket *can* hash functions, and we never intend to generate
@@ -49,17 +49,10 @@
   (hash-union a b (lambda (k x y) ((ExtPoint-join k) x y))))
 
 (define (env-join* es) (reduce es env-empty env-join2))
-
 (define (env-join . es) (env-join* es))
-
-(define env-monoid (Monoid env-join2 env-empty))
-
-(define (env-single ext-point value)
-  (hash ext-point value))
-
+(define (env-single ext-point value) (hash ext-point value))
 (define (env-get ext-point env)
-  (hash-get ext-point env
-    (lambda () (ExtPoint-empty ext-point))))
+  (hash-get ext-point env (lambda () (ExtPoint-empty ext-point))))
 
 
 ;; -- Built-in ParseEnv extension points --
