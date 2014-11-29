@@ -1,6 +1,7 @@
 #lang racket
 
 (require (for-syntax syntax/parse))
+(require racket/stream)
 
 (provide
   const flip iter funcall call-with curry nary unary
@@ -8,8 +9,7 @@
   mkid mktemp
   define-syntax-parser define-many
   eta
-  define-interface
-  reduce ;; foldl1 dict-union hash-unions
+  reduce stream-take ;; foldl1 dict-union hash-unions
   show repr printfln)
 
 (define (const x) (lambda _ x))
@@ -48,18 +48,6 @@
 (define-syntax-rule (define-many definer arg ...)
   (begin (syntax-magic-apply definer arg) ...))
 
-;;; Syntax for interfaces
-(define-syntax-rule (define-interface iface-name parents method ...)
-  (begin
-    (define iface-name (interface parents method ...))
-    (define-method iface-name method) ...))
-
-(define-syntax-rule (define-method iface-name method)
-  (define method
-    (let ([g (generic iface-name method)])
-      (lambda (object . args)
-        (send-generic object g . args)))))
-
 
 ;; Data structure manipulations
 ;; (define (foldl1 f xs)
@@ -75,6 +63,10 @@
     [`(,a) a]
     [`(,a ,b) (function a b)]
     [(cons a as) (foldl (flip function) a as)]))
+
+(define (stream-take s n)
+  (if (= n 0) empty-stream
+    (cons (stream-first s) (stream-take (stream-rest s) (- n 1)))))
 
 ;; (define (dict-union a b [combine (lambda (x y) y)])
 ;;   (cond

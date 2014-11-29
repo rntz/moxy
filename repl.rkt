@@ -88,11 +88,11 @@
   (let eval-next ([parse-env (engine-parse-env eng)]
                   [resolve-env (engine-resolve-env eng)]
                   [toks '()])
-    (define (print-error loc msg)
+    (define (print-error s msg)
       ;; TODO?: make locations work
       (eprintf "error: ~a\n" msg)
       (result:empty))
-    (define (handle loc res)
+    (define (handle s consumed res)
       ;; print what got bound
       (match res
         [(Expr e)
@@ -117,7 +117,7 @@
            (<$> Result (<* (parse-eval resolve-env eng) peof))
            (<$> Expr (<$> q-run (<* p-expr peof))))
           parse-env
-          (stream-stream (in-list toks))
+          (in-list toks)
           print-error
           print-error
           handle)))

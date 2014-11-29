@@ -7,7 +7,6 @@
 (require "values.rkt")
 
 (provide
-  string-stream stream-stream
   return fail pmap1 pmap2 lift1 lift2 seq seq* lift pdo
   >>= <* *> <$> <*>
   try ask local
@@ -27,99 +26,6 @@
 (define list->symbol (compose string->symbol list->string))
 
 
-;;; First we define what our stream interface looks like.
-(define-interface stream<%> ()
-  empty?      ;; stream -> bool
-  peek        ;; stream -> element
-  read-one    ;; stream -> element
-  read-string ;; stream nat -> (seq element)
-  location    ;; stream -> loc
-  mark        ;; stream -> mark
-  restore     ;; stream mark -> ()
-  )
-
-(define string-stream%
-  (class* object% (stream<%>)
-    (init string)
-
-    (define contents string)
-    (define current-pos 0)
-    (super-new)
-
-    (define/public (empty?)
-      (= current-pos (string-length contents)))
-
-    (define/public (peek)
-      (when (empty?) (error "tried to peek at empty string-stream%"))
-      (string-ref contents current-pos))
-
-    (define/public (read-one)
-      (when (empty?) (error "tried to read-one from end of string-stream%"))
-      (begin0
-        (string-ref contents current-pos)
-        (set! current-pos (+ 1 current-pos))))
-
-    (define/public (read-string amt)
-      (let ([start current-pos]
-            [end (min (+ current-pos amt) (string-length contents))])
-        (set! current-pos end)
-        (substring contents start end)))
-
-    (define/public (location) current-pos)
-    (define/public (mark) current-pos)
-
-    (define/public (restore pos)
-      (and (< pos 0) (> pos (string-length contents))
-        (error "invalid position"))
-      (set! current-pos pos))
-
-    (define/public (get-contents) contents)
-    (define/public (read-all)
-      (read-string (- (string-length contents) current-pos)))))
-
-(define (string-stream s)
-  (new string-stream% [string s]))
-
-;; TODO: file-stream%
-
-(define stream-stream%
-  (class* object% (stream<%>)
-    (init stream)
-
-    (define contents stream)
-    (super-new)
-
-    (define/public (empty?) (stream-empty? contents))
-
-    (define/public (peek)
-      (when (empty?) (error "tried to peek at empty stream-stream%"))
-      (stream-first contents))
-
-    (define/public (read-one)
-      (when (empty?) (error "tried to read-one from end of stream-stream%"))
-      (begin0
-        (stream-first contents)
-        (set! contents (stream-tail contents 1))))
-
-    (define/public (read-string n)
-      (if (empty?) '()
-        (cons (read-one) (read (- n 1)))))
-
-    (define/public (location)
-      ;; TODO: location tracking.
-      #f)
-
-    (define/public (mark) contents)
-    (define/public (restore mrk) (set! contents mrk))
-
-    (define/public (read-all)
-      (begin0
-        (stream->list contents)
-        (set! contents empty-stream)))))
-
-(define (stream-stream s) (new stream-stream% [stream s]))
-
-
 ;;; A parser is a function that takes:
 ;;; - an environment
 ;;; - an input stream
@@ -128,64 +34,61 @@
 ;;; - a success continuation
 ;;;
 ;;; The success continuation takes:
+;;; - the rest of the stream
 ;;; - a boolean which is #t iff we consumed input
 ;;; - the result
 ;;;
 ;;; The failure continuations take:
-;;; - a location
+;;; - the stream (at the location of the error)
 ;;; - an error message
 ;;;
 ;;; This is basically a reimplementation of the Haskell Parsec library.
 
 ;; some contracts
 (define parser/c
-  (-> any/c any/c procedure? procedure? procedure? any/c))
+  (-> any/c stream? procedure? procedure? procedure? any/c))
 
 ;;; Basic monadic operations
-(define/contract ((return x) env str hardk softk ok)
+(define/contract ((return x) env s hardk softk ok)
   (-> any/c parser/c)
-  (ok #f x))
+  (ok s #f x))
 
-(define ((fail msg) env str hardk softk ok)
-  (softk (location str) msg))
+(define ((fail msg) env s hardk softk ok)
+  (softk s msg))
 
-(define/contract ((pmap1 f a) env str hardk softk ok)
+(define/contract ((pmap1 f a) env s hardk softk ok)
   (-> procedure? parser/c parser/c)
-  (unless (procedure? f) (error 'pmap1 "not a procedure")) ;TODO: contracts
-  (unless (procedure? a) (error 'pmap1 "not a parser"))
-  (a env str hardk softk
-    (lambda (ate res) (ok ate (f res)))))
+  (a env s hardk softk
+    (lambda (s ate res) (ok s ate (f res)))))
 
-(define/contract ((pmap2 f a b) env str hardk softk ok)
+(define/contract ((pmap2 f a b) env s hardk softk ok)
   (-> (-> any/c any/c any/c) parser/c parser/c parser/c)
-  (unless (procedure? f) (error 'pmap2 "not a procedure")) ;TODO: contracts
-  (unless (procedure? a) (error 'pmap2 "not a parser"))
-  (unless (procedure? b) (error 'pmap2 "not a parser"))
-  (a env str hardk softk
-    (lambda (aate ares)
-      (b env str hardk (if aate hardk softk)
-        (lambda (bate bres)
-          (ok (or aate bate) (f ares bres)))))))
+  (a env s hardk softk
+    (lambda (s aate ares)
+      (b env s hardk (if aate hardk softk)
+        (lambda (s bate bres)
+          (ok s (or aate bate) (f ares bres)))))))
 
 (define (lift1 f) (curry pmap1 f))
 (define (lift2 f) (curry pmap2 f))
 ;; ((lift2 f) a b) == (pmap2 f a b)
 
+;; horrendously inefficient
 (define (seq ps) (foldr (lift2 cons) (return '()) ps))
 (define seq* (nary seq))
 (define (<$> f . ks) (pmap1 (unary f) (seq ks)))
 (define (lift f) (curry <$> f))
-(define (<*> f . ks) (apply <$> (lambda (x . as) (apply x as)) f ks))
+(define (<*> f . ks) (apply <$> funcall f ks))
 
 (define >>=
   (case-lambda
     [(x) x]
     [(a f . fs)
-      (lambda (env str hardk softk ok)
-        (a env str hardk softk
-          (lambda (ate res)
+      (lambda (env s hardk softk ok)
+        (a env s hardk softk
+          (lambda (s ate res)
             ((apply >>= (f res) fs)
-              env str hardk (if ate hardk softk) ok))))]))
+              env s hardk (if ate hardk softk) ok))))]))
 
 (define (*> . as) (<$> last (seq as)))
 (define (<* . as) (<$> car (seq as)))
@@ -203,41 +106,32 @@
 
 ;;; Runs a parser p, turning hard failures into soft failures. This allows
 ;;; nontrivial backtracking, which is useful but can cause asymptotic slowdown.
-(define ((try p) env str hardk softk ok)
-  (p env str softk softk ok))
+(define ((try p) env s hardk softk ok)
+  (p env s softk softk ok))
 
 ;;; Returns the current environment.
-(define (ask env str hardk softk ok) (ok #f env))
+(define (ask env s hardk softk ok) (ok s #f env))
 (define (asks f) (pmap1 f ask))
 
 ;;; Runs parser p in environment altered by f.
-(define ((local f p) env str hardk softk ok)
-  (p (f env) str hardk softk ok))
+(define ((local f p) env s hardk softk ok)
+  (p (f env) s hardk softk ok))
 
 ;;; Choice. Returns the result of the first succeeding parser. Backtracks and
 ;;; chooses the next parser from the list on soft failure. Propagates hard
 ;;; failure.
-(define ((psum ps) env str hardk softk ok)
-  (let ([savepoint (mark str)])
-    (match ps
-      ['() (softk (location str) "empty psum")]
-      [(cons x xs)
-        (let loop ([x x] [xs xs])
-          (x env str hardk
-            (lambda (loc msg)
-              (match xs
-                ['() (softk loc msg)]
-                [(cons x xs)
-                  (restore str savepoint)
-                  (loop x xs)]))
-            ok))])))
+(define ((choice/2 a b) env s hardk softk ok)
+  (a env s hardk (lambda _ (b env s hardk softk ok)) ok))
 
+(define/match (psum ps)
+  [('()) (fail "empty psum")]
+  [((list x)) x]
+  [((cons x xs)) (choice/2 x (psum xs))])
 (define choice (nary psum))
 
 ;;; Parser that expects end-of-input.
-(define (peof env str hardk softk ok)
-  (if (empty? str) (ok #f (void))
-    (softk (location str) "expected EOF")))
+(define (peof env s hardk softk ok)
+  (if (stream-empty? s) (ok s #f (void)) (softk s "expected EOF")))
 
 
 ;;; Useful combinators
@@ -245,9 +139,9 @@
 (define (optional p) (option (void) p))
 (define (option-maybe p) (option None (<$> Just p)))
 
-;;; Q: won't this overflow stack during parsing of long list?
+;;; Q: won't this overflow stack during parsing of a long list?
 ;;; A: no, it'll just fill up the heap with continuation closures.
-;;; that's the magic of CPS!
+;;; and that's the magic of CPS!
 (define (many p) (option '() (many1 p)))
 (define (many1 p) (<$> cons p (eta (many p))))
 (define (skip-many p) (optional (skip-many1 p)))
@@ -281,24 +175,21 @@
 ;; we return r. Otherwise we fail, calling (m x) to generate an error message.
 ;;
 ;; Consumes input iff p consumes.
-(define ((pmap-maybe parser func msgf) env str hardk softk ok)
-  (let ([loc (location str)])
-    (parser env str hardk softk
-      (lambda (ate res)
-        (match (func res)
-          [(Just x) (ok ate x)]
-          [(None) ((if ate hardk softk) loc (msgf res))])))))
+(define ((pmap-maybe parser func msgf) env s-orig hardk softk ok)
+  (parser env s-orig hardk softk
+    (lambda (s ate res)
+      (match (func res)
+        [(Just x) (ok s ate x)]
+        [(None) ((if ate hardk softk) s-orig (msgf res))]))))
 
 (define (pfilter parser pred msgf)
   (pmap-maybe parser (lambda (x) (if (pred x) (Just x) None)) msgf))
 
 
 ;;; Useful primitives
-(define (take n)
-  (if (= 0 n) (return (void))
-    (lambda (env str hardk softk ok)
-      (let ([got (read-string str n)])
-        (ok (< 0 (sequence-length got)) got)))))
+(define ((take n) env s hardk softk ok)
+  (define got (stream-take s n))
+  (ok (stream-tail rest n) (null? got) got))
 
 (define (expect-seq seq [test equal?])
   (try
@@ -307,9 +198,9 @@
       (lambda (got)
         (string-append "expected " (repr seq) ", got" (repr got))))))
 
-(define (take-one env str hardk softk ok)
-  (if (empty? str) (softk (location str) "unexpected EOF")
-    (ok #t (read-one str))))
+(define (take-one env s hardk softk ok)
+  (if (stream-empty? s) (softk s "unexpected EOF")
+    (ok (stream-rest s) #t (stream-first s))))
 
 (define (expect t [test equal?])
   (try (pfilter take-one
@@ -317,9 +208,9 @@
          (lambda (got)
            (string-append "expected " (repr t) ", got " (repr got))))))
 
-(define (peek-one env str hardk softk ok)
-  (if (empty? str) (softk (location str) "unexpected EOF")
-    (ok #f (peek str))))
+(define (peek-one env s hardk softk ok)
+  (if (stream-empty? s) (softk s "unexpected EOF")
+    (ok s #f (stream-first s))))
 
 (define (satisfy p [msgf (lambda (t) (format "unexpected ~v" t))])
   (try (pfilter take-one p msgf)))

@@ -30,10 +30,10 @@
   parse-eval parse-eval-one)
 
 (define (parse parser env stream)
-  (define ((err quality) loc msg)
-    (error 'parse "~a error at pos ~a: ~a" quality loc msg))
-  (parser env (stream-stream stream) (err "hard") (err "soft")
-    (lambda (_ r) r)))
+  (define ((err quality) s msg)
+    ;; TODO: positions?
+    (error 'parse "~a error: ~a" quality msg))
+  (parser env stream (err "hard") (err "soft") (lambda (s c r) r)))
 
 ;; Path, ParseEnv, ResolveEnv, Engine -> Result
 (define (parse-eval-file filepath parse-env resolve-env eng)
