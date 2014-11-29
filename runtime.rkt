@@ -128,10 +128,10 @@
       [lookup hash-lookup]
       [get hash-get]
       [put hash-put]
-      [putWith hash-put-with]
+      ;; [putWith hash-put-with]
       [delete hash-delete]
-      [alter hash-alter]
-      [map hash-map]
+      ;; [alter hash-alter]
+      ;; [map hash-map]
       [union hash-union]
       ;; [unions hash-unions]
       ;; XXX lists

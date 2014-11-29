@@ -356,9 +356,6 @@
   (<$> make-@case p-expr
     (many (*> bar (seq* p-pat (*> (keysym "->") p-expr))))))
 
-;; TODO: this should have an extension point!
-;; if we did this we could define quasiquote and quote generically, so that
-;; anything quasiquotable is automatically quotable!
 (define p-quote-form
   (pdo parse-env <- ask
     ext <- (pmap-maybe take-one

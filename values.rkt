@@ -1,6 +1,6 @@
 #lang racket
 
-(require (only-in racket [hash-map racket/hash-map]))
+;;(require (only-in racket [hash-map racket/hash-map]))
 
 (require "util.rkt")
 (require "tags.rkt")
@@ -15,8 +15,9 @@
   hash-empty? hash-count                ;re-exports
   hash-empty hash-single hash-from-list hash-from-keys-values
   hash-has? hash-lookup hash-get
-  hash-put hash-put-with hash-delete hash-alter
-  hash-map hash-union)
+  hash-put hash-delete
+  ;; hash-put-with hash-alter hash-map
+  hash-union)
 
 (define hash-empty (hash))
 (define (hash-single k v) (hash k v))
@@ -33,35 +34,29 @@
   (cond
     [(procedure? or-else) (hash-ref h k or-else)]
     [(not or-else) (hash-ref h k)]
-    [else
-      (error "or-else argument to hash-get must be a procedure or #f")]))
+    [else (error "or-else argument to hash-get must be a procedure or #f")]))
 
 (define (hash-put k v h) (hash-set h k v))
-(define (hash-put-with k v h f)
-  (hash-put k (maybe (hash-lookup k h) v (lambda (x) (f k x v)))
-            h))
+;; (define (hash-put-with k v h f)
+;;   (hash-put k (maybe (hash-lookup k h) v (lambda (x) (f k x v))) h))
 
 (define (hash-delete k h) (hash-remove h k))
 
-;; f takes (Maybe v) -> (Maybe v)
-(define (hash-alter k h f)
-  (match (f (hash-lookup k h))
-    [(None) (hash-delete k h)]
-    [(Just x) (hash-put k x h)]))
+;; ;; f takes (Maybe v) -> (Maybe v)
+;; (define (hash-alter k h f)
+;;   (match (f (hash-lookup k h))
+;;     [(None) (hash-delete k h)]
+;;     [(Just x) (hash-put k x h)]))
 
-;; (f k v) --> new-v
-(define (hash-map h f)
-  (make-immutable-hash
-    (racket/hash-map h (lambda (k v) (cons k (f k v))))))
+;; ;; (f k v) --> new-v
+;; (define (hash-map h f)
+;;   (make-immutable-hash
+;;     (racket/hash-map h (lambda (k v) (cons k (f k v))))))
 
 (define (hash-union a b [combine (lambda (k x y) y)])
-  (cond
-    [(hash-empty? a) b]
-    [(hash-empty? b) a]
-    [else
-      (hash-for-each b
-        (lambda (key val) (set! a (hash-put-with key val a combine))))
-      a]))
+  (for/fold ([a a])
+            ([(key v2) b])
+    (hash-update a key (lambda (v1) (combine key v1 v2)) (lambda () v2))))
 
 
 ;; Builtin tags.
