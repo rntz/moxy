@@ -13,7 +13,6 @@
   (for-syntax tag-name-id tag-predicate-id tag-field-id
     tag-fields-id tag-fields))
 
-;; omit-define-syntaxes necessary to allow (define-match-expander ann) later
 (struct tag (name arity uid) #:transparent)
 (struct tagged (tag value) #:transparent
   #:methods gen:custom-write

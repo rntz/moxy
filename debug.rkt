@@ -16,12 +16,9 @@
   (when *debug* body ...))
 
 (define-syntax-rule (debugf format args ...)
-  (debug
-    (eprintf format args ...)
-    (eprintf "\n")))
+  (debug (eprintf (string-append format "\n") args ...)))
 
 (define-syntax-rule (debugf-pretty format args ... last-arg)
   (debug
-    (eprintf format args ...)
-    (eprintf " ")
+    (eprintf (string-append format " ") args ...)
     (pretty-print last-arg (current-error-port) 1)))

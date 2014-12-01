@@ -33,16 +33,6 @@
 
 (provide env-empty env-join2 env-join* env-join env-single env-get)
 
-;; hashtable type used for extension-point envs. I don't think this is
-;; necessary, since racket *can* hash functions, and we never intend to generate
-;; two ExtPoints with the same uid.
-;;
-;; (define-custom-hash-types ext-hash
-;;   #:key? ExtPoint?
-;;   ExtPoint-equal?
-;;   (lambda (x) (eq-hash-code (ExtPoint-uid x)))
-;;   (lambda (x) (equal-secondary-hash-code (ExtPoint-uid x))))
-
 (define env-empty (hash))
 
 (define (env-join2 a b)
@@ -145,7 +135,7 @@
 
 ;; -- Built-in ResolveEnv extension points --
 
-;; TODO: should ResolveEnv really be represented as an env? or is it too
+;; FIXME: should ResolveEnv really be represented as an env? or is it too
 ;; special-purpose? What legitimate extensions to ResolveEnv are possible?
 
 (provide

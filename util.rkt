@@ -68,25 +68,6 @@
   (if (= n 0) empty-stream
     (cons (stream-first s) (stream-take (stream-rest s) (- n 1)))))
 
-;; (define (dict-union a b [combine (lambda (x y) y)])
-;;   (cond
-;;     [(dict-empty? a) b]
-;;     [(dict-empty? b) a]
-;;     [else
-;;       ;; TODO: this is inefficient
-;;       (dict-for-each b
-;;         (lambda (key val)
-;;           (set! a (dict-set a key
-;;                     (if (dict-has-key? a key)
-;;                      (combine (dict-ref a key) val)
-;;                       val)))))
-;;       a]))
-
-;; (define (hash-unions hashes [combine (lambda (x y) y)])
-;;   (if (null? hashes) (hash)
-;;     ;; relies on reduce not using its second argument if list is non-empty
-;;     (reduce hashes (void) (lambda (x y) (dict-union x y combine)))))
-
 
 ;; String formatting & IO
 
