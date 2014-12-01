@@ -17,6 +17,8 @@
 ;; - (seq a) for a:(listof (F A)) --> F (listof A)
 ;; - (last a1 ... an)
 
+(provide Idiom-pure Idiom-map Idiom-ap Idiom-lift Idiom-seq Idiom-last idiom)
+
 (define-iface Idiom pure map ap lift seq last)
 
 (define (idiom #:lift [lift_ #f] #:map [map_ #f]
@@ -38,6 +40,8 @@
 ;; - (join k) for k:F (F A) --> F A
 ;; - ((bind f) k1 ... kn)
 ;;   note: order of arguments differs from usual convention!
+
+(provide Monad-join Monad-bind lift/join->monad pure/bind->monad)
 
 (define-iface Monad join bind)
 
@@ -61,10 +65,14 @@
 ;; - fail : string -> F A
 ;; - (plus x y) for x:F A, y:F A -> F A
 
+(provide Alternative-zero Alternative-fail Alternative-plus)
+
 (define-iface Alternative zero fail plus)
 
 
 ;; Some monadishes.
+(provide id-monad reader-monad reader/ask reader/local univ-monad)
+
 (define id-monad
   (hash-union
     (idiom #:lift identity #:pure identity #:seq identity
@@ -82,3 +90,12 @@
 ;; TODO: perhaps these outta work with multiple arguments/returns?
 (define reader/ask identity)
 (define ((reader/local f k) x) (k (f x)))
+
+;; The "universal" (initial) monad: produces a function that takes a monad as
+;; argument and runs the computation in that monad. In some sense, a flavor of
+;; reader monad.
+(define ((univ/join k) mish) ((k mish) mish))
+(define (((univ/lift f) . as) mish)
+  (apply ((Idiom-lift mish) f) (map (call-with mish) as)))
+
+(define univ-monad (lift/join->monad univ/lift univ/join))
