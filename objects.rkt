@@ -25,6 +25,7 @@
 ;; objects.
 ;;
 ;; TODO: explain interfaces & accessors
+;; TODO: define provide-syntax (iface-out IFACE ...)
 
 
 (provide
