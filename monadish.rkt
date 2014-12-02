@@ -73,19 +73,13 @@
 ;; Some monadishes.
 (provide id-monad reader-monad reader/ask reader/local univ-monad)
 
-(define id-monad
-  (hash-union
-    (idiom #:lift identity #:pure identity #:seq identity
-      #:map funcall #:ap funcall)
-    (hash 'bind funcall 'join identity)))
+(define id-monad (lift/join->monad identity identity))
 
 ;; Reader
-(define (((reader/lift f) . as) . reader-args)
-  (apply f (map (lambda (k) (apply k reader-args)) as)))
+(define (((reader/bind f) . as) . reader-args)
+  (apply (apply f (map (lambda (k) (apply k reader-args)) as)) reader-args))
 
-(define ((reader/join k) . args) (apply (apply k args) args))
-
-(define reader-monad (lift/join->monad reader/lift reader/join))
+(define reader-monad (pure/bind->monad const reader/bind))
 
 ;; TODO: perhaps these outta work with multiple arguments/returns?
 (define reader/ask identity)
