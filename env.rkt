@@ -11,15 +11,13 @@
 (define (make-ExtPoint name join empty)
   (ExtPoint name (gensym name) join empty))
 
-(define-syntax (define-ExtPoint stx)
-  (syntax-case stx ()
-    [(_ name join empty)
-      #`(begin
-          (define name (make-ExtPoint 'name join empty))
-          (define #,(format-id #'name "~a-join" #'name)
-            (ExtPoint-join name))
-          (define #,(format-id #'name "~a-empty" #'name)
-            (ExtPoint-empty name)))]))
+(define-syntax-parser (define-ExtPoint name join empty)
+  #`(begin
+      (define name (make-ExtPoint 'name join empty))
+      (define #,(format-id #'name "~a-join" #'name)
+        (ExtPoint-join name))
+      (define #,(format-id #'name "~a-empty" #'name)
+        (ExtPoint-empty name))))
 
 
 ;; Environments are immutable hashtables, mapping extension-points to their
