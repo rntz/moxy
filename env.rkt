@@ -6,7 +6,7 @@
 (require "objects.rkt")
 (require "values.rkt")
 
-(provide make-ExtPoint define-ExtPoint ExtPoint-equal?)
+(provide make-ExtPoint define-ExtPoint)
 
 (define (make-ExtPoint name join empty)
   (ExtPoint name (gensym name) join empty))
@@ -20,11 +20,6 @@
             (ExtPoint-join name))
           (define #,(format-id #'name "~a-empty" #'name)
             (ExtPoint-empty name)))]))
-
-(define ExtPoint-equal?
-  (lambda (x y) (eq? (ExtPoint-uid x) (ExtPoint-uid y)))
-  ;(match-lambda** [((ExtPoint _ uid1 _) (ExtPoint _ uid2 _)) (eq? uid1 uid2)])
-  )
 
 
 ;; Environments are immutable hashtables, mapping extension-points to their
